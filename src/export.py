@@ -13,7 +13,14 @@ MAP_PNG_DIMS = (800, 440)  # px, used for the sourcing choropleth in exports
 
 
 def _fig_to_png(fig, width, height):
-    return fig.to_image(format="png", width=width, height=height, scale=2)
+    """Returns None instead of raising if kaleido can't launch a browser to
+    render with - environments like Streamlit Cloud don't always have the
+    system Chrome dependencies available, and a chart shouldn't break the
+    whole export when that happens."""
+    try:
+        return fig.to_image(format="png", width=width, height=height, scale=2)
+    except Exception:
+        return None
 
 RISK_COLOR_RGB = {
     "Low Risk": (46, 204, 113),
@@ -171,6 +178,8 @@ def generate_excel_report(
             if len(history) < 2:
                 continue
             png_bytes = _fig_to_png(build_commodity_chart(name, history), width_px, height_px)
+            if png_bytes is None:
+                continue
             xl_image = XLImage(PILImage.open(io.BytesIO(png_bytes)))
             xl_image.width, xl_image.height = width_px // 2, height_px // 2
             commodity_sheet.add_image(xl_image, f"A{row_cursor}")
@@ -179,9 +188,10 @@ def generate_excel_report(
         sourcing_sheet = writer.sheets["Sourcing Breakdown"]
         map_width_px, map_height_px = MAP_PNG_DIMS
         map_png_bytes = _fig_to_png(build_geo_choropleth(by_country), map_width_px, map_height_px)
-        map_xl_image = XLImage(PILImage.open(io.BytesIO(map_png_bytes)))
-        map_xl_image.width, map_xl_image.height = map_width_px // 2, map_height_px // 2
-        sourcing_sheet.add_image(map_xl_image, f"A{len(sourcing_df) + 3}")
+        if map_png_bytes is not None:
+            map_xl_image = XLImage(PILImage.open(io.BytesIO(map_png_bytes)))
+            map_xl_image.width, map_xl_image.height = map_width_px // 2, map_height_px // 2
+            sourcing_sheet.add_image(map_xl_image, f"A{len(sourcing_df) + 3}")
 
     return buffer.getvalue()
 
@@ -200,7 +210,11 @@ def _fit_cell_text(pdf, text, width):
 
 def _place_image(pdf, epw, png_bytes, width_px, height_px, margin_bottom=15):
     """Places an image at full content width, breaking to a new page first if
-    it wouldn't fit - fpdf2's image() doesn't auto-paginate like cell() does."""
+    it wouldn't fit - fpdf2's image() doesn't auto-paginate like cell() does.
+    No-ops if png_bytes is None (chart failed to render, e.g. no headless
+    Chrome available in this environment)."""
+    if png_bytes is None:
+        return
     height_mm = epw * (height_px / width_px)
     if pdf.get_y() + height_mm > pdf.h - margin_bottom:
         pdf.add_page()
