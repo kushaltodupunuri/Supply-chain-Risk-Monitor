@@ -469,7 +469,7 @@ with tab4:
     col_summary, col_rec = st.columns(2)
 
     with col_summary:
-        st.markdown("### AI Risk Brief")
+        st.markdown("### Brief")
         with st.spinner("Generating summary..."):
             ai_summary = generate_risk_summary_safe(industry, result, commodity_changes, company_name or None)
         st.markdown(
@@ -480,8 +480,6 @@ with tab4:
             """,
             unsafe_allow_html=True,
         )
-        st.caption("AI-generated based on current market data (Groq if deployed, local Ollama otherwise).")
-
         if company_name:
             st.markdown("#### Company Note")
             with st.spinner(f"Looking up {company_name}..."):
