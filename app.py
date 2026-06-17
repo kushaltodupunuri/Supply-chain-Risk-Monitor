@@ -18,6 +18,7 @@ from src.ai.summary import (
 )
 from src.export import generate_excel_report, generate_pdf_report
 from src.charts import build_commodity_chart, build_geo_choropleth, ALPHA2_TO_ALPHA3, hex_to_rgba
+from src.data.sanctions import check_sanctions_status_safe
 
 st.set_page_config(
     page_title="Supply Chain Risk Monitor",
@@ -257,6 +258,11 @@ def get_cached_company_industry(company_name):
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_cached_known_suppliers(company_name, industry):
     return generate_known_suppliers_safe(company_name, industry)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cached_sanctions_status(entity_name):
+    return check_sanctions_status_safe(entity_name)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -717,6 +723,67 @@ with tab4:
         st.caption(f"Derived from the current logistics & shipping risk score ({logistics_result['score']}).")
 
     st.markdown("---")
+    st.markdown("### Supplier Risk")
+    sr_col1, sr_col2 = st.columns(2)
+
+    with sr_col1:
+        st.markdown("**Supplier Risk Rating**")
+        supplier_score = result["sub_scores"]["supplier"]
+        st.markdown(
+            f"<span style='color:{get_risk_color(supplier_score)}; font-weight:700; font-size:22px;'>"
+            f"{supplier_score}</span> <span style='color:{get_risk_color(supplier_score)}; font-weight:700;'>"
+            f"({get_risk_label(supplier_score)})</span>",
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("**Single Source Dependency**")
+        if by_country:
+            top_code, top_data = max(by_country.items(), key=lambda x: x[1]["weight"])
+            top_pct = top_data["weight"] * 100
+            if top_pct >= 50:
+                dep_label, dep_color = "High", "#E74C3C"
+            elif top_pct >= 30:
+                dep_label, dep_color = "Moderate", "#F39C12"
+            else:
+                dep_label, dep_color = "Low", "#2ECC71"
+            st.markdown(
+                f"<span style='color:{dep_color}; font-weight:700;'>{dep_label}</span> - "
+                f"{top_pct:.0f}% sourced from {top_data['name']}",
+                unsafe_allow_html=True,
+            )
+        else:
+            dep_label, dep_color, top_data, top_pct = "Unknown", "#94A3B8", None, 0
+            st.caption("No sourcing data available.")
+
+    with sr_col2:
+        st.markdown("**Supplier Compliance Status**")
+        compliance_targets = (
+            [s["supplier"] for s in known_suppliers] if known_suppliers
+            else ([company_name] if company_name else [])
+        )
+        compliance_results = []
+        if compliance_targets:
+            with st.spinner("Checking US Consolidated Screening List..."):
+                compliance_results = [(name, get_cached_sanctions_status(name)) for name in compliance_targets]
+
+        flagged = [(name, r) for name, r in compliance_results if r["sanctioned"]]
+        any_checked = any(r["checked"] for _, r in compliance_results)
+
+        if flagged:
+            for name, r in flagged:
+                st.markdown(f"- ⚠️ **{name}** - potential match: {r['matched_name']} (verify manually)")
+        elif any_checked:
+            st.markdown(
+                "<span style='color:#2ECC71; font-weight:700;'>Clear</span> - no name match found "
+                "on the US Consolidated Screening List.",
+                unsafe_allow_html=True,
+            )
+        elif not compliance_targets:
+            st.caption("No company or named supplier to check.")
+        else:
+            st.caption("Not checked - compliance screening API key not configured.")
+
+    st.markdown("---")
 
     commodity_changes = {
         name: (history[-1]["value"] - history[0]["value"]) / history[0]["value"] * 100
@@ -775,6 +842,7 @@ with tab4:
                 industry, company_name, time_horizon, result, ai_summary, recommendations,
                 commodity_data, SHIPPING_STATUS, logistics_result, by_country,
                 critical_alerts, high_risk_suppliers, (disruption_label, disruption_color),
+                (dep_label, top_pct, top_data["name"] if top_data else None), compliance_results,
             ),
             file_name=f"supply_chain_risk_{industry.lower().replace(' ', '_')}.pdf",
             mime="application/pdf",
@@ -787,6 +855,7 @@ with tab4:
                 industry, company_name, time_horizon, result, ai_summary, recommendations,
                 commodity_data, SHIPPING_STATUS, logistics_result, by_country,
                 critical_alerts, high_risk_suppliers, (disruption_label, disruption_color),
+                (dep_label, top_pct, top_data["name"] if top_data else None), compliance_results,
             ),
             file_name=f"supply_chain_risk_{industry.lower().replace(' ', '_')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

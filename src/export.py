@@ -112,10 +112,36 @@ def _sourcing_rows(by_country):
     return rows
 
 
+def _compliance_status_text(compliance_results):
+    flagged = [(name, r) for name, r in compliance_results if r["sanctioned"]]
+    any_checked = any(r["checked"] for _, r in compliance_results)
+    if flagged:
+        return "; ".join(f"{name} - potential match: {r['matched_name']}" for name, r in flagged)
+    if any_checked:
+        return "Clear - no name match found on the US Consolidated Screening List."
+    if compliance_results:
+        return "Not checked - compliance screening API key not configured."
+    return "Not checked - no company/supplier name available."
+
+
+def _supplier_risk_rows(result, single_source_dependency, compliance_results):
+    supplier_score = result["sub_scores"]["supplier"]
+    dep_label, dep_pct, dep_country = single_source_dependency
+    dependency_text = (
+        f"{dep_label} - {dep_pct:.0f}% sourced from {dep_country}" if dep_country else "Unknown - no sourcing data"
+    )
+    return [
+        {"Metric": "Supplier Risk Rating", "Value": f"{supplier_score} ({_risk_label(supplier_score)})"},
+        {"Metric": "Single Source Dependency", "Value": dependency_text},
+        {"Metric": "Supplier Compliance Status", "Value": _compliance_status_text(compliance_results)},
+    ]
+
+
 def generate_excel_report(
     industry, company_name, time_horizon, result, ai_summary, recommendations,
     commodity_data, shipping_status, logistics_result, by_country,
     critical_alerts, high_risk_suppliers, disruption_band,
+    single_source_dependency, compliance_results,
 ):
     """Returns the .xlsx file as bytes, ready for st.download_button."""
     overview_df = pd.DataFrame([
@@ -166,10 +192,14 @@ def generate_excel_report(
     commodity_df = pd.DataFrame(_commodity_rows(commodity_data))
     shipping_df = pd.DataFrame(_shipping_rows(shipping_status, logistics_result))
     sourcing_df = pd.DataFrame(_sourcing_rows(by_country))
+    supplier_risk_df = pd.DataFrame(
+        _supplier_risk_rows(result, single_source_dependency, compliance_results)
+    )
 
     sheets = [
         ("Overview", overview_df),
         ("Risk Scores", scores_df),
+        ("Supplier Risk", supplier_risk_df),
         ("AI Summary", summary_df),
         ("Recommendations", recs_df),
         ("Commodity Prices", commodity_df),
@@ -292,6 +322,7 @@ def generate_pdf_report(
     industry, company_name, time_horizon, result, ai_summary, recommendations,
     commodity_data, shipping_status, logistics_result, by_country,
     critical_alerts, high_risk_suppliers, disruption_band,
+    single_source_dependency, compliance_results,
 ):
     """Returns the .pdf file as bytes, ready for st.download_button.
 
@@ -403,6 +434,24 @@ def generate_pdf_report(
         pdf.ln(9)
 
     pdf.ln(4)
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.set_x(10)
+    pdf.cell(epw, 9, "Supplier Risk", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+
+    for metric_label, value_text in [
+        (row["Metric"], row["Value"])
+        for row in _supplier_risk_rows(result, single_source_dependency, compliance_results)
+    ]:
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_x(10)
+        pdf.multi_cell(epw, 6, _pdf_safe(metric_label), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 10)
+        pdf.set_x(10)
+        pdf.multi_cell(epw, 6, _pdf_safe(value_text), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(2)
+
+    pdf.ln(2)
     pdf.set_font("Helvetica", "B", 13)
     pdf.set_x(10)
     pdf.cell(epw, 8, "AI Risk Brief", new_x="LMARGIN", new_y="NEXT")
