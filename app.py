@@ -373,7 +373,16 @@ result = {
     "details": base_result["details"],
 }
 
-st.markdown("## Overall Risk Assessment")
+st.subheader(
+    "Overall Risk Assessment",
+    help=(
+        "Weighted average of 5 categories: Supplier Concentration (25%), "
+        "Commodity Price (20%), Logistics & Shipping (20%), Geopolitical (20%), "
+        "and Regulatory & Trade (15%). Supplier Concentration carries the most "
+        "weight since it's the most fundamental structural risk - even calm "
+        "prices and stable politics don't help if you source from one factory."
+    ),
+)
 
 gauge_col, _spacer = st.columns([1, 2])
 
