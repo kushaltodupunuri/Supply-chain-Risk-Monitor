@@ -138,19 +138,6 @@ def get_commodity_prices(industry, days=90):
     }
 
 
-def get_all_commodity_prices(days=90):
-    """Returns {commodity_name: [{date, value}, ...]} for every commodity this app
-    tracks at all (Steel, Copper, Aluminum, Oil, Natural Gas, Wheat, Corn, Cotton),
-    regardless of which industry is selected. Used for the full commodity price
-    dashboard - the risk scoring model still uses get_commodity_prices(industry) so
-    each industry's risk score only weighs the commodities actually relevant to it.
-    """
-    return {
-        commodity_name: get_commodity_history(commodity_name, days=days)
-        for commodity_name in COMMODITY_SOURCE_MAP
-    }
-
-
 if __name__ == "__main__":
     for industry in INDUSTRY_COMMODITIES:
         print(f"\n=== {industry} ===")

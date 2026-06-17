@@ -3,7 +3,7 @@ import plotly.graph_objects as go
 
 from src.models.risk_engine import calculate_risk_score, WEIGHTS, get_risk_label
 from src.data.geopolitical import COUNTRY_NAMES, get_country_risk
-from src.data.commodity_prices import get_commodity_prices, get_all_commodity_prices
+from src.data.commodity_prices import get_commodity_prices
 from src.data.shipping import SHIPPING_STATUS
 from src.models.logistics_risk import calculate_logistics_risk
 from src.models.geopolitical_risk import calculate_geopolitical_risk, wb_score_to_risk
@@ -211,11 +211,6 @@ def get_cached_commodity_prices(industry):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def get_cached_all_commodity_prices():
-    return get_all_commodity_prices()
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
 def get_cached_logistics_risk():
     return calculate_logistics_risk()
 
@@ -387,9 +382,8 @@ with tab1:
     st.markdown("### Commodity Price Trends")
 
     commodity_data = get_cached_commodity_prices(industry)
-    all_commodity_data = get_cached_all_commodity_prices()
 
-    for commodity_name, history in all_commodity_data.items():
+    for commodity_name, history in commodity_data.items():
         if len(history) < 2:
             st.warning(
                 f"{commodity_name} price data is temporarily unavailable - this usually means "
