@@ -454,18 +454,29 @@ with tab3:
     st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("#### Sourcing Concentration Breakdown")
+    st.caption(f"All {len(by_country)} countries {industry} sources from, and what's actually sourced from each.")
+
     for code, data in sorted(by_country.items(), key=lambda x: x[1]["weight"], reverse=True):
         color = get_risk_color(data["final"])
-        col_country, col_share, col_risk = st.columns([2, 1, 1])
-        with col_country:
-            st.write(f"**{data['name']}** ({code})")
-        with col_share:
-            st.write(f"{data['weight'] * 100:.0f}% of sourcing")
-        with col_risk:
-            st.markdown(
-                f"<span style='color:{color}; font-weight:bold'>{data['final']}/100</span>",
-                unsafe_allow_html=True,
-            )
+        st.markdown(
+            f"""
+            <div class="rec-card" style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
+                <div style="flex:2;">
+                    <div style="font-weight:700; color:#1E293B; font-size:15px;">{data['name']} ({code})</div>
+                    <div style="color:#64748B; margin-top:4px; font-size:13.5px;">{data['product']}</div>
+                </div>
+                <div style="flex:1; text-align:center;">
+                    <div style="font-weight:700; color:#1E293B; font-size:16px;">{data['weight'] * 100:.0f}%</div>
+                    <div style="color:#94A3B8; font-size:11px; text-transform:uppercase; letter-spacing:0.03em;">of sourcing</div>
+                </div>
+                <div style="flex:1; text-align:center;">
+                    <div style="font-weight:800; color:{color}; font-size:18px;">{data['final']}</div>
+                    <div style="color:#94A3B8; font-size:11px; text-transform:uppercase; letter-spacing:0.03em;">risk score</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 with tab4:
     commodity_changes = {

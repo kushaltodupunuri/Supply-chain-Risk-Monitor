@@ -12,6 +12,45 @@ INDUSTRY_SOURCING_WEIGHTS = {
     "Food & Beverage": {"US": 0.30, "BR": 0.25, "AR": 0.15, "AU": 0.15, "UA": 0.15},
 }
 
+# What's actually sourced from each country, per industry - hand-researched public
+# knowledge, same as the weights above. This is what makes the sourcing breakdown
+# show WHAT comes from WHERE, not just a country name and a percentage.
+INDUSTRY_SOURCING_PRODUCTS = {
+    "Electronics": {
+        "TW": "Advanced semiconductors & chips (TSMC foundries)",
+        "CN": "Final assembly, PCBs & general components (Foxconn and others)",
+        "KR": "Memory chips & display panels (Samsung, SK Hynix)",
+        "VN": "Electronics assembly & lower-cost components",
+        "MY": "Chip packaging, testing & passive components",
+    },
+    "Pharma": {
+        "CN": "Active pharmaceutical ingredients (APIs) & raw chemical precursors",
+        "IN": "Generic drug manufacturing & formulation",
+        "IE": "Branded drug production (major EU/US export manufacturing hub)",
+        "SG": "Biologics & specialty/high-value pharmaceutical manufacturing",
+    },
+    "Automotive": {
+        "CN": "EV batteries, electronics & rare-earth-dependent components",
+        "MX": "Vehicle assembly & wiring harnesses (cross-border US supply chain)",
+        "JP": "Precision parts, engines & electronics",
+        "DE": "Premium components, engineering & precision machinery",
+        "KR": "Auto parts & batteries (LG, SK on)",
+    },
+    "Retail": {
+        "CN": "General manufacturing - apparel, electronics, housewares",
+        "BD": "Garment & apparel manufacturing (major low-cost clothing hub)",
+        "VN": "Textiles, footwear & furniture manufacturing",
+        "IN": "Textiles, home goods & leather products",
+    },
+    "Food & Beverage": {
+        "US": "Domestic grain, processed foods & packaging",
+        "BR": "Soybeans, coffee & beef",
+        "AR": "Grains (wheat, corn, soy) & beef",
+        "AU": "Beef, wheat & dairy",
+        "UA": "Wheat, corn & sunflower oil (major global grain exporter)",
+    },
+}
+
 
 def wb_score_to_risk(wb_score):
     """Converts a World Bank political stability score (-2.5 worst, +2.5 best) into
@@ -53,6 +92,7 @@ def calculate_geopolitical_risk(industry, use_news_alerts=True):
             "base": round(base_risk, 1),
             "alert_adjustment": alert_adjustment,
             "final": round(final_risk, 1),
+            "product": INDUSTRY_SOURCING_PRODUCTS.get(industry, {}).get(code, "General sourcing"),
         }
         total_score += final_risk * weight
 
