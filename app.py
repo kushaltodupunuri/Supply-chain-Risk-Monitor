@@ -131,6 +131,24 @@ INDUSTRIES = [
     "IT", "E-commerce",
 ]
 
+# A starting list of well-known companies spanning all 11 industries, so the company
+# name field can suggest options as you type. This is just a convenience list, not a
+# restriction - accept_new_options=True on the selectbox lets you type any company at
+# all, which the AI detection/adjustment layer handles the same way either way.
+KNOWN_COMPANIES = [
+    "Apple", "Samsung", "Sony", "LG", "Dell", "HP", "Lenovo",
+    "Microsoft", "Google", "IBM", "Oracle", "Cisco", "Intel", "Nvidia",
+    "Boeing", "Lockheed Martin", "Airbus", "Raytheon", "Northrop Grumman",
+    "Pfizer", "Johnson & Johnson", "Moderna", "Merck", "Novartis", "AstraZeneca",
+    "Toyota", "Ford", "General Motors", "Tesla", "Honda", "Volkswagen", "BMW",
+    "ExxonMobil", "Chevron", "Shell", "BP", "Saudi Aramco",
+    "Walmart", "Target", "Costco", "Home Depot",
+    "Amazon", "eBay", "Alibaba", "Shopify",
+    "Caterpillar", "Deere & Company", "Siemens", "General Electric",
+    "Dow", "DuPont", "BASF",
+    "Coca-Cola", "PepsiCo", "Nestle", "Unilever", "Kraft Heinz",
+]
+
 
 def get_risk_color(score):
     if score <= 30:
@@ -245,11 +263,15 @@ with st.sidebar:
     st.title("Risk Monitor Settings")
     st.markdown("---")
 
-    company_name = st.text_input(
+    company_name = st.selectbox(
         "Company Name (optional)",
+        options=KNOWN_COMPANIES,
+        index=None,
         placeholder="e.g., Apple, Toyota, Pfizer",
-        help="Enter a specific company - its industry is detected automatically",
+        help="Pick a suggestion or type any company - its industry is detected automatically",
+        accept_new_options=True,
     )
+    company_name = company_name or ""
 
     # A company name determines its own industry automatically - typing "Apple" works
     # correctly no matter what the Industry dropdown is set to, instead of requiring the
