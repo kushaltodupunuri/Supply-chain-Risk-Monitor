@@ -263,14 +263,25 @@ def get_cached_geopolitical_risk(industry):
     return calculate_geopolitical_risk(industry)
 
 
-def display_score_card(label, score, icon):
+def info_icon(tooltip_text):
+    return (
+        f'<span title="{tooltip_text}" style="'
+        f'display:inline-flex; align-items:center; justify-content:center; '
+        f'width:15px; height:15px; border-radius:50%; background:#CBD5E1; color:#fff; '
+        f'font-size:10px; font-weight:700; font-style:italic; font-family:Georgia,serif; '
+        f'cursor:help; margin-left:5px; vertical-align:middle;">i</span>'
+    )
+
+
+def display_score_card(label, score, icon, description=None):
     color = get_risk_color(score)
     risk_text = get_risk_label(score)
+    tooltip = info_icon(description) if description else ""
     st.markdown(
         f"""
         <div class="risk-card" style="--card-color: {color};">
             <div class="risk-icon">{icon}</div>
-            <div class="risk-label">{label}</div>
+            <div class="risk-label">{label}{tooltip}</div>
             <div class="risk-value" style="color: {color};">{score}</div>
             <div style="font-size: 13px; font-weight: 700; color: {color}; margin-top: 2px;">{risk_text}</div>
         </div>
@@ -373,16 +384,14 @@ result = {
     "details": base_result["details"],
 }
 
-st.subheader(
-    "Overall Risk Assessment",
-    help=(
-        "Weighted average of 5 categories: Supplier Concentration (25%), "
-        "Commodity Price (20%), Logistics & Shipping (20%), Geopolitical (20%), "
-        "and Regulatory & Trade (15%). Supplier Concentration carries the most "
-        "weight since it's the most fundamental structural risk - even calm "
-        "prices and stable politics don't help if you source from one factory."
-    ),
+overall_tooltip = info_icon(
+    "Weighted average of 5 categories: Supplier Concentration (25%), "
+    "Commodity Price (20%), Logistics & Shipping (20%), Geopolitical (20%), "
+    "and Regulatory & Trade (15%). Supplier Concentration carries the most "
+    "weight since it's the most fundamental structural risk - even calm "
+    "prices and stable politics don't help if you source from one factory."
 )
+st.markdown(f"## Overall Risk Assessment{overall_tooltip}", unsafe_allow_html=True)
 
 gauge_col, _spacer = st.columns([1, 2])
 
@@ -424,11 +433,31 @@ with gauge_col:
     )
 
 SUB_SCORE_CARDS = [
-    ("supplier", "Supplier Concentration", "🏭"),
-    ("commodity", "Commodity Price", "📦"),
-    ("logistics", "Logistics & Shipping", "🚢"),
-    ("geopolitical", "Geopolitical", "🌍"),
-    ("regulatory", "Regulatory & Trade", "📜"),
+    (
+        "supplier", "Supplier Concentration", "🏭",
+        "How dependent this industry is on a small number of suppliers/countries. "
+        "A hand-researched baseline, since this shifts over years, not days.",
+    ),
+    (
+        "commodity", "Commodity Price", "📦",
+        "Live price trend + volatility across this industry's tracked raw materials "
+        "(FRED + Alpha Vantage), looking at the last 90 days.",
+    ),
+    (
+        "logistics", "Logistics & Shipping", "🚢",
+        "Status of 5 major shipping routes (Red Sea, Panama Canal, US ports, Strait "
+        "of Malacca), plus a live news-spike layer for sudden disruptions.",
+    ),
+    (
+        "geopolitical", "Geopolitical", "🌍",
+        "World Bank political-stability data for this industry's sourcing countries, "
+        "weighted by sourcing share, plus a live news-spike layer.",
+    ),
+    (
+        "regulatory", "Regulatory & Trade", "📜",
+        "Tariffs, export controls, and trade-policy exposure for this industry, "
+        "plus a live news-spike layer for breaking tariff/trade headlines.",
+    ),
 ]
 
 st.markdown("<br>", unsafe_allow_html=True)
@@ -436,9 +465,9 @@ cards_per_row = 5
 for row_start in range(0, len(SUB_SCORE_CARDS), cards_per_row):
     row_cards = SUB_SCORE_CARDS[row_start:row_start + cards_per_row]
     cols = st.columns(cards_per_row)
-    for col, (key, label, icon) in zip(cols, row_cards):
+    for col, (key, label, icon, description) in zip(cols, row_cards):
         with col:
-            display_score_card(label, result["sub_scores"][key], icon)
+            display_score_card(label, result["sub_scores"][key], icon, description)
 
 # ---- DETAIL TABS (placeholders for now) ----
 st.markdown("---")
