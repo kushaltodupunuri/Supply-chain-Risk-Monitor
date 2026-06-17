@@ -1,6 +1,4 @@
-# Build Plan — Supply Chain Risk Monitor
-
-4 weeks, 2-3 hours per day. Each week has a clear goal and a done definition.
+Supply Chain Risk Monitor
 
 ---
 
