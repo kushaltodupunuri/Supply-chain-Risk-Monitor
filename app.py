@@ -287,17 +287,6 @@ result = {
 
 st.markdown("## Overall Risk Assessment")
 
-if company_name:
-    if company_adjustment["known"]:
-        st.info(
-            f"📊 Scores adjusted for **{company_name}**-specific factors. {company_adjustment['reasoning']}"
-        )
-    else:
-        st.caption(
-            f"ℹ️ No reliable company-specific data found for '{company_name}' - "
-            f"showing the {industry} industry baseline."
-        )
-
 gauge_col, cards_col = st.columns([1, 2])
 
 with gauge_col:
