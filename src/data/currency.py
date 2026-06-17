@@ -9,12 +9,15 @@ FRED_API_KEY = get_secret("FRED_API_KEY")
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "cache")
 
 # FX series available via FRED's free H.10 release (vs USD). Countries not listed here
-# (Taiwan, Vietnam, Bangladesh, Argentina, Ukraine) don't have a free FRED series -
-# currency_risk.py treats those as "no data" and excludes them rather than guessing.
+# don't have a free daily FRED series - currency_risk.py treats those as "no data" and
+# excludes them rather than guessing. Notably missing: Taiwan, Vietnam, Bangladesh,
+# Argentina, Ukraine (no free series), and Saudi Arabia/UAE (pegged currencies with no
+# meaningful daily series) and Russia (sanctions-affected, no current free series).
 FX_SERIES_MAP = {
     "CN": "DEXCHUS", "KR": "DEXKOUS", "MX": "DEXMXUS", "JP": "DEXJPUS",
     "DE": "DEXUSEU", "IE": "DEXUSEU", "IN": "DEXINUS", "BR": "DEXBZUS",
     "AU": "DEXUSAL", "SG": "DEXSIUS", "MY": "DEXMAUS",
+    "CA": "DEXCAUS", "FR": "DEXUSEU", "GB": "DEXUSUK",
 }
 
 

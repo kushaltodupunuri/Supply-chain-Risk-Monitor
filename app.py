@@ -125,7 +125,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-INDUSTRIES = ["Electronics", "Automotive", "Pharma", "Retail", "Food & Beverage"]
+INDUSTRIES = [
+    "Electronics", "Automotive", "Pharma", "Retail", "Food & Beverage",
+    "Energy", "Aerospace & Defense", "Chemicals", "Industrial Equipment & Machinery",
+    "IT", "E-commerce",
+]
 
 
 def get_risk_color(score):

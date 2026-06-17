@@ -8,6 +8,12 @@ BASE_SUPPLIER_SCORES = {
     "Automotive": 61,       # Chips concentrated in Asia, but steel/aluminum globally available
     "Retail": 55,           # Diversifying, but still 40%+ manufacturing from China
     "Food & Beverage": 35,  # Agricultural production is globally distributed
+    "IT": 75,                              # Same semiconductor dependency as Electronics, plus cloud/hyperscaler concentration
+    "Aerospace & Defense": 70,              # Highly specialized, concentrated supplier base (Boeing/Airbus-tier ecosystem)
+    "Energy": 50,                           # OPEC+ concentration in extraction, but refining/distribution is globally diversified
+    "Chemicals": 45,                        # Moderate - feedstock concentration offset by globally distributed production
+    "Industrial Equipment & Machinery": 50, # Moderate - components sourced broadly, final assembly more concentrated
+    "E-commerce": 45,                       # Logistics-driven, not manufacturing-concentrated like pure-play industries
 }
 
 

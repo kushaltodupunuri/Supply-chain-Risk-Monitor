@@ -37,6 +37,8 @@ COUNTRY_NAMES = {
     "BD": "Bangladesh", "US": "United States", "BR": "Brazil",
     "AR": "Argentina", "AU": "Australia", "UA": "Ukraine",
     "IE": "Ireland", "SG": "Singapore",
+    "SA": "Saudi Arabia", "RU": "Russia", "CA": "Canada",
+    "FR": "France", "GB": "United Kingdom",
 }
 
 # Countries each industry sources from. Used by the Week 2 risk model

@@ -23,6 +23,8 @@ COMMODITY_SOURCE_MAP = {
     "Wheat": {"source": "alpha", "function": "WHEAT"},
     "Corn": {"source": "alpha", "function": "CORN"},
     "Cotton": {"source": "alpha", "function": "COTTON"},
+    # FRED PPI series, like Steel - monthly data, same caveat applies.
+    "Titanium": {"source": "fred", "id": "WPU102505"},
 }
 
 INDUSTRY_COMMODITIES = {
@@ -31,6 +33,12 @@ INDUSTRY_COMMODITIES = {
     "Pharma": ["Natural Gas", "Oil (WTI)"],
     "Retail": ["Cotton", "Oil (WTI)"],
     "Food & Beverage": ["Wheat", "Corn", "Natural Gas"],
+    "Energy": ["Oil (WTI)", "Natural Gas"],
+    "Aerospace & Defense": ["Aluminum", "Titanium", "Oil (WTI)"],
+    "Chemicals": ["Oil (WTI)", "Natural Gas"],
+    "Industrial Equipment & Machinery": ["Steel", "Copper", "Aluminum"],
+    "IT": ["Copper", "Oil (WTI)"],
+    "E-commerce": ["Oil (WTI)", "Cotton"],
 }
 
 

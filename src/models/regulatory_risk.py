@@ -26,6 +26,30 @@ REGULATORY_BASELINE = {
         "base_score": 40,
         "summary": "Agricultural trade tensions and periodic grain export restrictions in key exporting nations",
     },
+    "Energy": {
+        "base_score": 55,
+        "summary": "OPEC+ production quotas and sanctions on Russian energy exports continue to shape trade flows",
+    },
+    "Aerospace & Defense": {
+        "base_score": 60,
+        "summary": "Export controls (ITAR) and defense procurement regulations create significant compliance overhead",
+    },
+    "Chemicals": {
+        "base_score": 50,
+        "summary": "Environmental and chemical safety regulations (e.g. REACH) continue to tighten globally",
+    },
+    "Industrial Equipment & Machinery": {
+        "base_score": 40,
+        "summary": "Steel and aluminum tariffs affect machinery input costs; otherwise relatively stable trade environment",
+    },
+    "IT": {
+        "base_score": 55,
+        "summary": "Export controls on advanced semiconductors and data-localization rules affect cross-border IT supply chains",
+    },
+    "E-commerce": {
+        "base_score": 45,
+        "summary": "Changes to de minimis import rules and customs enforcement affect cross-border e-commerce shipments",
+    },
 }
 
 

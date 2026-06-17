@@ -25,6 +25,30 @@ CLIMATE_BASELINE = {
         "base_score": 65,
         "summary": "Direct exposure to droughts and floods affecting crop yields in the US, Brazil, Argentina, and Ukraine - inherently climate-sensitive sourcing",
     },
+    "Energy": {
+        "base_score": 40,
+        "summary": "Gulf Coast hurricane exposure affects US refining capacity; extraction sites are otherwise geographically diversified",
+    },
+    "Aerospace & Defense": {
+        "base_score": 25,
+        "summary": "Manufacturing concentrated in stable, developed regions (US, France, Germany, UK, Japan) with limited acute climate exposure",
+    },
+    "Chemicals": {
+        "base_score": 45,
+        "summary": "Gulf Coast petrochemical complex faces hurricane exposure affecting feedstock processing",
+    },
+    "Industrial Equipment & Machinery": {
+        "base_score": 30,
+        "summary": "Diversified manufacturing footprint across stable regions limits concentrated climate exposure",
+    },
+    "IT": {
+        "base_score": 55,
+        "summary": "Shares Electronics' Taiwan semiconductor exposure to earthquakes and typhoons, plus data center cooling/water-stress concerns",
+    },
+    "E-commerce": {
+        "base_score": 30,
+        "summary": "Distributed fulfillment network reduces concentrated exposure, though manufacturing-side exposure mirrors Retail",
+    },
 }
 
 

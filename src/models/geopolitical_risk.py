@@ -10,6 +10,12 @@ INDUSTRY_SOURCING_WEIGHTS = {
     "Automotive": {"CN": 0.30, "MX": 0.25, "JP": 0.20, "DE": 0.15, "KR": 0.10},
     "Retail": {"CN": 0.45, "BD": 0.20, "VN": 0.20, "IN": 0.15},
     "Food & Beverage": {"US": 0.30, "BR": 0.25, "AR": 0.15, "AU": 0.15, "UA": 0.15},
+    "Energy": {"US": 0.35, "SA": 0.25, "RU": 0.15, "CA": 0.25},
+    "Aerospace & Defense": {"US": 0.40, "FR": 0.20, "JP": 0.15, "DE": 0.15, "GB": 0.10},
+    "Chemicals": {"US": 0.30, "CN": 0.30, "DE": 0.20, "SA": 0.20},
+    "Industrial Equipment & Machinery": {"CN": 0.30, "US": 0.25, "DE": 0.25, "JP": 0.20},
+    "IT": {"TW": 0.35, "CN": 0.25, "US": 0.20, "IN": 0.15, "IE": 0.05},
+    "E-commerce": {"CN": 0.40, "US": 0.30, "VN": 0.15, "IN": 0.15},
 }
 
 # What's actually sourced from each country, per industry - hand-researched public
@@ -48,6 +54,44 @@ INDUSTRY_SOURCING_PRODUCTS = {
         "AR": "Grains (wheat, corn, soy) & beef",
         "AU": "Beef, wheat & dairy",
         "UA": "Wheat, corn & sunflower oil (major global grain exporter)",
+    },
+    "Energy": {
+        "US": "Shale oil & natural gas production",
+        "SA": "Crude oil production (OPEC+ leading exporter)",
+        "RU": "Crude oil & natural gas exports",
+        "CA": "Oil sands & natural gas production",
+    },
+    "Aerospace & Defense": {
+        "US": "Airframe & engine manufacturing (Boeing, defense primes)",
+        "FR": "Airframe manufacturing (Airbus)",
+        "JP": "Composite materials & precision components",
+        "DE": "Precision engineering & avionics",
+        "GB": "Engine manufacturing (Rolls-Royce) & avionics",
+    },
+    "Chemicals": {
+        "US": "Petrochemical feedstock & specialty chemicals",
+        "CN": "Bulk chemical manufacturing",
+        "DE": "Specialty & fine chemicals",
+        "SA": "Petrochemical feedstock (low-cost oil/gas-based)",
+    },
+    "Industrial Equipment & Machinery": {
+        "CN": "Components & sub-assembly manufacturing",
+        "US": "Heavy equipment assembly & engineering",
+        "DE": "Precision machinery & engineering",
+        "JP": "Hydraulics & precision components",
+    },
+    "IT": {
+        "TW": "Semiconductors & chip fabrication",
+        "CN": "Hardware assembly & components",
+        "US": "R&D, cloud infrastructure & design",
+        "IN": "IT services & hardware assembly",
+        "IE": "Data center operations & EU distribution hub",
+    },
+    "E-commerce": {
+        "CN": "Manufactured consumer goods (wide variety)",
+        "US": "Domestic fulfillment, warehousing & last-mile logistics",
+        "VN": "Apparel & consumer goods manufacturing",
+        "IN": "Textiles & consumer goods",
     },
 }
 

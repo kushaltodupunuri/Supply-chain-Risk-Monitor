@@ -364,6 +364,12 @@ ALTERNATIVE_REGIONS = {
     "Automotive": "Mexico and Eastern Europe",
     "Retail": "Vietnam, Bangladesh, and India",
     "Food & Beverage": "Brazil and Australia",
+    "Energy": "Canada and domestic US production",
+    "Aerospace & Defense": "allied-nation suppliers (Japan, UK, Germany)",
+    "Chemicals": "domestic US and German specialty chemical producers",
+    "Industrial Equipment & Machinery": "Germany and Japan",
+    "IT": "India and Vietnam",
+    "E-commerce": "India and Vietnam",
 }
 
 PRIMARY_COMMODITIES = {
@@ -372,6 +378,12 @@ PRIMARY_COMMODITIES = {
     "Automotive": "steel and aluminum",
     "Retail": "cotton and shipping fuel",
     "Food & Beverage": "wheat and corn",
+    "Energy": "crude oil and natural gas",
+    "Aerospace & Defense": "titanium and aluminum",
+    "Chemicals": "oil and natural gas feedstock",
+    "Industrial Equipment & Machinery": "steel and copper",
+    "IT": "copper and semiconductor-related materials",
+    "E-commerce": "cotton and shipping fuel",
 }
 
 
