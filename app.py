@@ -20,7 +20,7 @@ st.set_page_config(
     page_title="Supply Chain Risk Monitor",
     page_icon="🔍",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
 st.markdown(
@@ -142,6 +142,15 @@ st.markdown(
 
     /* Tighter, more deliberate vertical rhythm between sections */
     div[data-testid="stVerticalBlock"] > div { margin-bottom: 0.15rem; }
+
+    /* The gauge container is fixed at 360px to avoid Plotly's number/arc overlapping
+       when a flexible column squishes it - but on real phone-width screens, 360px is
+       wider than the available space and would overflow off-screen. Shrink it down
+       at narrow breakpoints instead (the Plotly chart inside uses width="stretch",
+       so it fills whatever size this container ends up being). */
+    @media (max-width: 600px) {
+        .st-key-gauge_container { width: min(280px, 85vw) !important; }
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -274,20 +283,22 @@ def info_icon(tooltip_text):
     )
 
 
-def display_score_card(label, score, icon, description=None):
+def score_card_html(label, score, icon, description=None):
+    """Returns the card's HTML (doesn't render it) so multiple cards can be combined
+    into one CSS Grid container - this lets the grid reflow card count per row based
+    on actual available width (auto-fit), instead of Streamlit's fixed-ratio columns
+    which just get uncomfortably narrow at small screen sizes rather than reflowing.
+    """
     color = get_risk_color(score)
     risk_text = get_risk_label(score)
     tooltip = info_icon(description) if description else ""
-    st.markdown(
-        f"""
-        <div class="risk-card" style="--card-color: {color};">
-            <div class="risk-icon">{icon}</div>
-            <div class="risk-label">{label}{tooltip}</div>
-            <div class="risk-value" style="color: {color};">{score}</div>
-            <div style="font-size: 13px; font-weight: 700; color: {color}; margin-top: 2px;">{risk_text}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    return (
+        f'<div class="risk-card" style="--card-color: {color};">'
+        f'<div class="risk-icon">{icon}</div>'
+        f'<div class="risk-label">{label}{tooltip}</div>'
+        f'<div class="risk-value" style="color: {color};">{score}</div>'
+        f'<div style="font-size: 13px; font-weight: 700; color: {color}; margin-top: 2px;">{risk_text}</div>'
+        f'</div>'
     )
 
 
@@ -354,7 +365,7 @@ if company_name and not detected_industry:
     )
 
 st.markdown(
-    f"""<div style="display:flex; gap:8px; margin-top:-10px; margin-bottom:20px;">{badges}</div>""",
+    f"""<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:-10px; margin-bottom:20px;">{badges}</div>""",
     unsafe_allow_html=True,
 )
 
@@ -394,9 +405,7 @@ overall_tooltip = info_icon(
 )
 st.markdown(f"## Overall Risk Assessment{overall_tooltip}", unsafe_allow_html=True)
 
-gauge_col, _spacer = st.columns([1, 2])
-
-with gauge_col:
+with st.container(width=360, key="gauge_container"):
     fig = go.Figure(
         go.Indicator(
             mode="gauge+number",
@@ -421,11 +430,16 @@ with gauge_col:
         )
     )
     fig.update_layout(
+        width=360,
         height=280,
         margin=dict(t=50, b=10, l=30, r=40),
         font=dict(family="Inter, sans-serif", color="#1E293B"),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    # Wrapped in a fixed-width (360px) container above, not a flexible column -
+    # letting a shrinking column stretch/squish this gauge while height stays fixed
+    # distorts the semi-circle shape and makes the number overlap the arc. A fixed
+    # container renders identically everywhere instead of degrading unpredictably.
+    st.plotly_chart(fig, width="stretch")
 
     color = get_risk_color(result["total"])
     st.markdown(
@@ -462,13 +476,14 @@ SUB_SCORE_CARDS = [
 ]
 
 st.markdown("<br>", unsafe_allow_html=True)
-cards_per_row = 5
-for row_start in range(0, len(SUB_SCORE_CARDS), cards_per_row):
-    row_cards = SUB_SCORE_CARDS[row_start:row_start + cards_per_row]
-    cols = st.columns(cards_per_row)
-    for col, (key, label, icon, description) in zip(cols, row_cards):
-        with col:
-            display_score_card(label, result["sub_scores"][key], icon, description)
+cards_html = "".join(
+    score_card_html(label, result["sub_scores"][key], icon, description)
+    for key, label, icon, description in SUB_SCORE_CARDS
+)
+st.markdown(
+    f'<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px;">{cards_html}</div>',
+    unsafe_allow_html=True,
+)
 
 # ---- DETAIL TABS (placeholders for now) ----
 st.markdown("---")
