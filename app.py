@@ -264,7 +264,7 @@ with st.sidebar:
     st.markdown("---")
 
     company_name = st.selectbox(
-        "Company Name (optional)",
+        "Company Name",
         options=KNOWN_COMPANIES,
         index=None,
         placeholder="e.g., Apple, Toyota, Pfizer",
@@ -286,10 +286,10 @@ with st.sidebar:
         if detected_industry and st.session_state.get("industry_select") != detected_industry:
             st.session_state["industry_select"] = detected_industry
 
-    industry = st.selectbox("Select Industry", options=INDUSTRIES, index=0, key="industry_select")
+    industry = st.selectbox("Select Industry *", options=INDUSTRIES, index=0, key="industry_select")
 
     time_horizon = st.selectbox(
-        "Risk Time Horizon", options=["30 days", "90 days", "180 days"], index=1
+        "Risk Time Horizon *", options=["30 days", "90 days", "180 days"], index=1
     )
 
     st.markdown("---")
