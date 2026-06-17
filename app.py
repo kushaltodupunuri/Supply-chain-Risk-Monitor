@@ -385,7 +385,7 @@ st.markdown("---")
 st.markdown("## Detailed Analysis")
 
 tab1, tab2, tab3, tab4 = st.tabs(
-    ["📈 Commodity Prices", "🚢 Shipping Routes", "🌍 Geopolitical Map", "📋 AI Summary & Recommendations"]
+    ["📈 Commodity Prices", "🚢 Shipping Routes", "🌍 Geopolitical Map", "📋 Summary & Recommendations"]
 )
 
 with tab1:
