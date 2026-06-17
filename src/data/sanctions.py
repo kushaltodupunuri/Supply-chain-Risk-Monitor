@@ -12,19 +12,24 @@ from src.config import get_secret
 CSL_SEARCH_URL = "https://data.trade.gov/consolidated_screening_list/v1/search"
 TRADE_GOV_API_KEY = get_secret("TRADE_GOV_API_KEY")
 
-MIN_NAME_LENGTH = 4  # below this, matching against short acronyms like "BP", "GE",
-# "HP" risks a false-positive hit against an unrelated longer listed name that
-# happens to contain that token - safer to skip the check than show a wrong result.
+MIN_NAME_LENGTH = 4  # below this an exact-match check is still risky (e.g. very
+# short legal names), so we skip rather than show a potentially wrong result.
+
+
+def _normalize(name):
+    return re.sub(r"\s+", " ", name.strip().upper())
 
 
 def check_sanctions_status(entity_name):
     """Checks whether entity_name appears on the Consolidated Screening List.
 
-    The underlying API is intentionally over-inclusive (a compliance screening
-    tool is supposed to surface anything worth a human's attention), so a result
-    is only counted as a match if the listed name also contains entity_name as a
-    whole word - this is still a real, verifiable signal, but the absence of a
-    match means "no listed-name match found", not a certified clean bill of health.
+    Requires an exact (case/whitespace-insensitive) name match. The underlying
+    API's own "name" search is intentionally broad/fuzzy - a compliance tool is
+    supposed to surface anything worth a human's attention - and an earlier,
+    looser whole-word-substring check on our side incorrectly flagged "Apple" as
+    a match against "ORIENTAL APPLE COMPANY PTE LTD". Exact match trades recall
+    (it'll miss a listed entity that adds "Ltd"/"Group"/etc.) for not falsely
+    flagging real companies, which matters more for a result shown as a fact.
 
     Returns {"checked": bool, "sanctioned": bool, "matched_name": str or None}.
     `checked` is False if no API key is configured or the entity name is too
@@ -43,10 +48,10 @@ def check_sanctions_status(entity_name):
     response.raise_for_status()
     results = response.json().get("results", [])
 
-    pattern = re.compile(r"\b" + re.escape(entity_name.upper()) + r"\b")
+    needle = _normalize(entity_name)
     for item in results:
         listed_name = str(item.get("name", ""))
-        if pattern.search(listed_name.upper()):
+        if _normalize(listed_name) == needle:
             return {"checked": True, "sanctioned": True, "matched_name": listed_name}
 
     return {"checked": True, "sanctioned": False, "matched_name": None}
