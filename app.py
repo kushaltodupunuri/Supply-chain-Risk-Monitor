@@ -21,6 +21,108 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+st.markdown(
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    html, body, [class*="css"], .stApp, .stMarkdown, p, div, span {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    }
+
+    /* Sidebar: dark slate for contrast against the light main content area */
+    [data-testid="stSidebar"] {
+        background-color: #0F172A;
+    }
+    [data-testid="stSidebar"] * {
+        color: #E2E8F0 !important;
+    }
+    [data-testid="stSidebar"] label {
+        color: #94A3B8 !important;
+        font-weight: 600 !important;
+        font-size: 0.8rem !important;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    [data-testid="stSidebar"] hr {
+        border-color: #334155;
+    }
+    [data-testid="stSidebar"] input, [data-testid="stSidebar"] [data-baseweb="select"] > div {
+        background-color: #1E293B !important;
+        border-color: #334155 !important;
+        color: #F1F5F9 !important;
+    }
+
+    /* Headings get tighter, bolder treatment than Streamlit's default */
+    h1 {
+        font-weight: 800 !important;
+        letter-spacing: -0.02em !important;
+        color: #0F172A !important;
+    }
+    h2, h3 {
+        font-weight: 700 !important;
+        letter-spacing: -0.01em !important;
+        color: #1E293B !important;
+        margin-top: 0.4em !important;
+    }
+
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 6px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        font-weight: 600;
+        padding: 10px 18px;
+        border-radius: 8px 8px 0 0;
+    }
+
+    /* Score / risk cards */
+    .risk-card {
+        background: #FFFFFF;
+        border-radius: 14px;
+        padding: 20px 22px;
+        margin: 6px 0;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+        border-left: 5px solid var(--card-color, #94A3B8);
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+    .risk-card:hover {
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.10);
+        transform: translateY(-2px);
+    }
+    .risk-card .risk-icon { font-size: 26px; margin-bottom: 8px; }
+    .risk-card .risk-label {
+        font-weight: 600; font-size: 13px; color: #64748B;
+        text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .risk-card .risk-value { font-size: 38px; font-weight: 800; margin-top: 4px; line-height: 1.1; }
+
+    /* AI text panels (risk brief, company note) */
+    .note-card {
+        border-radius: 14px;
+        padding: 22px 24px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+        line-height: 1.7;
+        font-size: 15.5px;
+    }
+
+    /* Recommendation cards */
+    .rec-card {
+        background: #FFFFFF;
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin: 10px 0;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+        border: 1px solid #EEF2F7;
+    }
+
+    /* Tighter, more deliberate vertical rhythm between sections */
+    div[data-testid="stVerticalBlock"] > div { margin-bottom: 0.15rem; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 INDUSTRIES = ["Electronics", "Automotive", "Pharma", "Retail", "Food & Beverage"]
 
 
@@ -85,16 +187,10 @@ def display_score_card(label, score, icon):
     color = get_risk_color(score)
     st.markdown(
         f"""
-        <div style="
-            background: {color}22;
-            border-left: 4px solid {color};
-            border-radius: 8px;
-            padding: 16px;
-            margin: 4px 0;
-        ">
-            <div style="font-size: 24px">{icon}</div>
-            <div style="font-weight: bold; font-size: 14px; color: #333">{label}</div>
-            <div style="font-size: 36px; font-weight: bold; color: {color}">{score}</div>
+        <div class="risk-card" style="--card-color: {color};">
+            <div class="risk-icon">{icon}</div>
+            <div class="risk-label">{label}</div>
+            <div class="risk-value" style="color: {color};">{score}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -126,7 +222,15 @@ title_text = "Supply Chain Risk Monitor"
 if company_name:
     title_text += f" — {company_name}"
 st.title(title_text)
-st.caption(f"Industry: {industry} | Horizon: {time_horizon}")
+st.markdown(
+    f"""
+    <div style="display:flex; gap:8px; margin-top:-10px; margin-bottom:20px;">
+        <span style="background:#EEF2FF; color:#4F46E5; padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700;">{industry}</span>
+        <span style="background:#F1F5F9; color:#475569; padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700;">{time_horizon} horizon</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ---- RISK SCORE SECTION ----
 with st.spinner("Fetching live data and calculating risk scores..."):
@@ -195,7 +299,11 @@ with gauge_col:
             },
         )
     )
-    fig.update_layout(height=280, margin=dict(t=50, b=10, l=30, r=40))
+    fig.update_layout(
+        height=280,
+        margin=dict(t=50, b=10, l=30, r=40),
+        font=dict(family="Inter, sans-serif", color="#1E293B"),
+    )
     st.plotly_chart(fig, use_container_width=True)
 
     color = get_risk_color(result["total"])
@@ -265,6 +373,9 @@ with tab1:
             margin=dict(t=40, b=20, l=40, r=20),
             showlegend=False,
             hovermode="x unified",
+            font=dict(family="Inter, sans-serif", color="#1E293B"),
+            plot_bgcolor="#FFFFFF",
+            paper_bgcolor="#FFFFFF",
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -330,6 +441,7 @@ with tab3:
         geo=dict(showframe=False, showcoastlines=True, projection_type="equirectangular"),
         height=400,
         margin=dict(t=10, b=10, l=0, r=0),
+        font=dict(family="Inter, sans-serif", color="#1E293B"),
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -362,14 +474,7 @@ with tab4:
             ai_summary = generate_risk_summary_safe(industry, result, commodity_changes, company_name or None)
         st.markdown(
             f"""
-            <div style="
-                background: #f8f9fa;
-                border-left: 4px solid #3498db;
-                border-radius: 8px;
-                padding: 20px;
-                font-size: 16px;
-                line-height: 1.6;
-            ">
+            <div class="note-card" style="background: #F5F8FF; border-left: 5px solid #4F46E5;">
                 {ai_summary}
             </div>
             """,
@@ -383,14 +488,7 @@ with tab4:
                 company_note = generate_company_context_safe(company_name, industry)
             st.markdown(
                 f"""
-                <div style="
-                    background: #fff8e1;
-                    border-left: 4px solid #f0ad4e;
-                    border-radius: 8px;
-                    padding: 16px;
-                    font-size: 14px;
-                    line-height: 1.5;
-                ">
+                <div class="note-card" style="background: #FFF9EB; border-left: 5px solid #F0AD4E; font-size: 14px;">
                     {company_note}
                 </div>
                 """,
@@ -407,16 +505,10 @@ with tab4:
         for i, rec in enumerate(recommendations, 1):
             st.markdown(
                 f"""
-                <div style="
-                    background: white;
-                    border: 1px solid #ddd;
-                    border-radius: 8px;
-                    padding: 16px;
-                    margin: 8px 0;
-                ">
-                    <div style="font-weight: bold; color: #2c3e50">{i}. {rec['title']}</div>
-                    <div style="color: #555; margin-top: 6px">{rec['detail']}</div>
-                    <div style="color: #888; font-size: 12px; margin-top: 6px">Priority: {rec['priority']}</div>
+                <div class="rec-card">
+                    <div style="font-weight: 700; color: #1E293B; font-size: 15px;">{i}. {rec['title']}</div>
+                    <div style="color: #475569; margin-top: 6px; line-height: 1.5;">{rec['detail']}</div>
+                    <div style="color: #94A3B8; font-size: 12px; margin-top: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;">Priority: {rec['priority']}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
