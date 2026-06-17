@@ -2,11 +2,13 @@
 
 Read this first. It explains what you're building, why each part exists, and how the pieces connect. No jargon.
 
+**This doc was rewritten to match the live app.** The original plan covered 5 industries and 4 risk categories. The app has since grown to **11 industries** and **5 risk categories** (Currency/FX and Climate/Disaster were tried, then removed after review — see [docs/03-RISK-SCORING.md](03-RISK-SCORING.md) for why), plus a company-specific AI layer that wasn't in the original plan at all.
+
 ---
 
 ## The One-Line Description
 
-You are building a website that looks at live real-world data — commodity prices, shipping news, geopolitical events — and turns it into a single risk score for a given industry's supply chain.
+You are building a website that looks at live real-world data — commodity prices, shipping news, geopolitical events, trade policy — and turns it into a single risk score for a given industry's (or company's) supply chain.
 
 ---
 
@@ -18,81 +20,79 @@ Supply chain managers at companies like Apple, GM, or Pfizer spend hours every w
 
 They have to check commodity prices (steel went up 15% last month), look at shipping news (Red Sea disruptions adding 3 weeks to Asia-Europe routes), read geopolitical reports (new US-China tariffs coming), and then somehow combine all of this into a clear picture.
 
-Your app does that automatically, in seconds, for any industry.
+Your app does that automatically, in seconds, for any industry — or for a specific company, if the AI recognizes it.
 
 ---
 
-## The Five Industries You Cover
+## The 11 Industries You Cover
 
-You picked these because they have dramatically different supply chain profiles:
+You started with 5 and later added 6 more, covering a much wider range of recruiter-relevant sectors:
 
 | Industry | Main Risks | Key Commodities |
 |----------|-----------|-----------------|
-| **Automotive** | Semiconductor shortage, raw material prices | Steel, aluminum, copper, lithium |
-| **Pharma** | API sourcing from China/India, cold chain | Active pharmaceutical ingredients |
-| **Electronics** | Taiwan semiconductor concentration, rare earths | Chips, rare earth metals, plastics |
-| **Retail** | Ocean freight volatility, Asian manufacturing | Cotton, oil (shipping fuel), cardboard |
-| **Food & Beverage** | Weather, agricultural commodities, fuel | Wheat, corn, soybeans, natural gas |
+| **Electronics** | Taiwan semiconductor concentration, rare earths | Copper, oil |
+| **IT** | Same chip dependency as Electronics, plus cloud/hyperscaler concentration | Copper, oil |
+| **Aerospace & Defense** | Concentrated, specialized supplier base, export controls (ITAR) | Aluminum, titanium, oil |
+| **Pharma** | API sourcing from China/India | Natural gas, oil |
+| **Automotive** | Semiconductor shortage, raw material prices | Steel, copper, aluminum, oil |
+| **Energy** | OPEC+ concentration, sanctions on Russian exports | Oil, natural gas |
+| **Retail** | Ocean freight volatility, Asian manufacturing | Cotton, oil |
+| **E-commerce** | Logistics-driven, less manufacturing-concentrated | Oil, cotton |
+| **Industrial Equipment & Machinery** | Components sourced broadly, assembly more concentrated | Steel, copper, aluminum |
+| **Chemicals** | Feedstock concentration offset by global production | Oil, natural gas |
+| **Food & Beverage** | Weather, agricultural commodities, fuel | Wheat, corn, natural gas |
 
-Each industry has different data sources and different risk weights. Electronics cares more about geopolitical risk (Taiwan). Food & Beverage cares more about commodity prices (crop harvests).
+Each industry has its own researched supplier-concentration score, sourcing-country breakdown, and regulatory exposure — not one generic model stretched across all 11. Aerospace & Defense needed a brand-new commodity (Titanium) added to the data layer, since none of the original 8 commodities applied to it.
 
 ---
 
-## The Four Risk Dimensions
+## The Five Risk Dimensions
 
-Every supply chain has the same four categories of risk. Your app scores each one from 0-100.
+Every supply chain is scored across the same five categories, each 0-100, combined into one weighted total.
 
-### 1. Supplier Concentration Risk (30% of total score)
+### 1. Supplier Concentration Risk (25% of total score)
 
 **What it means:** Are you buying from too few suppliers in too few countries?
 
-If Apple buys 90% of its semiconductors from TSMC in Taiwan, and something happens in Taiwan, Apple has no backup. That's high concentration risk.
+If Apple buys most of its semiconductors from TSMC in Taiwan, and something happens in Taiwan, Apple has no backup. That's high concentration risk.
 
-**How you measure it:** You use known industry data about where each industry sources from. Electronics scores very high on this because semiconductor manufacturing is concentrated in Taiwan and South Korea. Food & Beverage scores lower because agricultural production is globally distributed.
+**How you measure it:** A hand-researched baseline score per industry (Electronics and IT score highest due to Taiwan/South Korea chip concentration; Food & Beverage scores lowest since agriculture is globally distributed). This is intentionally *not* pulled from a live API — supplier concentration shifts over years, not days, so a static, researched number is more honest than pretending to compute it live.
 
-**This is 30% of the total** because sourcing concentration is the most fundamental supply chain risk — it determines how vulnerable you are to any disruption.
+**This is 25% of the total** — the single largest factor — because sourcing concentration is the most fundamental supply chain risk.
 
-### 2. Commodity Price Risk (25% of total score)
+### 2. Commodity Price Risk (20% of total score)
 
 **What it means:** Are the raw materials this industry needs spiking in price or becoming volatile?
 
-If you make cars, you need steel. If steel prices jump 30% in a month, your production costs spike and you either lose margin or raise prices. If prices are volatile (swinging up and down unpredictably), that's also risky because you can't plan.
+**How you measure it:** Live commodity price data (FRED + Alpha Vantage) across 9 tracked commodities (Steel, Copper, Aluminum, Titanium, Oil, Natural Gas, Wheat, Corn, Cotton). Two signals combine: price trend (is it going up?) and price volatility (is it swinging unpredictably?).
 
-**How you measure it:** You pull live commodity price data from APIs and calculate two things:
-- Price trend (is it going up recently?)
-- Price volatility (is it swinging wildly?)
-
-High trend + high volatility = high commodity risk score.
-
-### 3. Logistics & Shipping Risk (25% of total score)
+### 3. Logistics & Shipping Risk (20% of total score)
 
 **What it means:** Can goods actually move from where they're made to where they're needed?
 
-The Suez Canal / Red Sea situation in 2024-2025 added 2+ weeks to Asia-Europe shipping routes. The Panama Canal drought reduced capacity. West Coast port strikes caused delays. These events raise costs and cause shortages even when supply and demand are fine.
-
-**How you measure it:** You track known disruption status of major routes. You score based on what percentage of global trade flows through disrupted routes and how severe the disruption is.
+**How you measure it:** A hand-curated baseline status for 5 major routes (Red Sea/Suez, Panama Canal, US East/West Coast ports, Strait of Malacca), combined with a **live news-spike layer** that watches for breaking disruption headlines between manual updates.
 
 ### 4. Geopolitical Risk (20% of total score)
 
 **What it means:** Are there political tensions, trade wars, or sanctions that could cut off supply?
 
-US-China tariffs affect electronics, rare earths, solar panels. Russia-Ukraine affects wheat, fertilizer, and energy. Taiwan Strait tensions affect semiconductors. These risks are hard to quantify but very real.
+**How you measure it:** Real World Bank political-stability data per sourcing country, weighted by how much of that industry's supply chain runs through each country, combined with the same live news-spike layer used for Logistics.
 
-**How you measure it:** You use country risk indices (published by organizations like the World Bank) combined with industry-specific exposure data (how much of this industry's supply chain runs through high-risk countries).
+### 5. Regulatory & Trade Risk (15% of total score)
+
+**What it means:** Tariffs, export controls, trade agreements, customs disputes — anything that disrupts the *legal* terms of trade, separate from political stability itself.
+
+**How you measure it:** A hand-curated baseline per industry (e.g. Electronics and IT score high due to ongoing semiconductor export controls) plus the same live news-spike layer, watching for tariff/trade-policy headlines specifically.
 
 ---
 
 ## How the Score Is Calculated
 
-You take each sub-score and apply a weighted average:
-
 ```
-Total Risk Score = (Supplier × 0.30) + (Commodity × 0.25) + (Logistics × 0.25) + (Geopolitical × 0.20)
+Total Risk Score = (Supplier × 0.25) + (Commodity × 0.20) + (Logistics × 0.20) + (Geopolitical × 0.20) + (Regulatory × 0.15)
 ```
 
-The weights reflect how much each factor contributes to actual supply chain failures historically.
-
-See [docs/03-RISK-SCORING.md](03-RISK-SCORING.md) for the full math.
+See [docs/03-RISK-SCORING.md](03-RISK-SCORING.md) for the full math, including the real bugs found and fixed while building the live news-spike layer.
 
 ---
 
@@ -102,61 +102,53 @@ See [docs/03-RISK-SCORING.md](03-RISK-SCORING.md) for the full math.
 
 | Data Type | How Live | Source |
 |-----------|----------|--------|
-| Commodity prices | Updated daily | FRED API (Federal Reserve), Alpha Vantage |
-| Shipping disruptions | Updated manually with API flags | Public shipping data |
-| Geopolitical risk | Updated quarterly | World Bank governance indicators |
-| Supplier concentration | Updated annually | UN Comtrade, industry reports |
+| Commodity prices | Updated daily (cached 24h) | FRED API (Federal Reserve), Alpha Vantage |
+| Shipping & Regulatory baselines | Hand-curated, updated every 1-2 weeks | Manual research |
+| Shipping & Geopolitical & Regulatory "spike" layer | Refreshed daily | NewsAPI headline search |
+| Geopolitical baseline | Updated annually (World Bank's own schedule) | World Bank governance indicators |
+| Supplier concentration | Updated quarterly | Hand-researched |
 
-Commodity prices are the most live data. Supplier concentration changes slowly and you update it less frequently.
-
-This means your app is showing *current market conditions* even if the underlying structural data (which countries make which goods) updates less often. That's fine and realistic — supply chain structure doesn't change overnight.
-
----
-
-## The AI Summary — Why It's There
-
-After calculating all the numbers, the app passes them to an AI (Claude, via the Anthropic API) with a prompt like:
-
-> "Electronics industry risk scores: Supplier: 78, Commodity: 61, Logistics: 72, Geopolitical: 85. Current raw materials data: [data]. Write a 3-4 sentence plain English summary of the biggest risks right now."
-
-The AI turns your numbers into a readable business brief. A recruiter or executive can read it in 10 seconds and understand the situation without knowing what any of the scores mean.
-
-This is how AI is used in real enterprise software — not to make the decisions, but to translate data into language that humans can act on.
+The structural data (which countries make which goods) updates slowly on purpose — that's realistic, since supply chain structure doesn't change overnight. The fast-moving layers (commodity prices, news-driven spikes) update daily so the dashboard reflects what's actually happening right now.
 
 ---
 
-## The Recommendations Panel — How It Works
+## The AI Layer — Why It's There
 
-This is also AI-generated but it's templated. You give the AI the scores and it selects from a library of pre-researched recommendations that are relevant to the risk levels.
+After calculating all the numbers, the app passes them to an LLM (**Groq's hosted Llama models when deployed, or a local Ollama model when running on your own machine** — not a paid API) to generate two things, shown in the **"Summary & Recommendations"** tab:
 
-For example:
-- If Electronics geopolitical risk > 70: recommend diversifying semiconductor sourcing to Vietnam or India
-- If Logistics risk > 60: recommend evaluating air freight for time-sensitive components
-- If Commodity risk > 65: recommend futures contracts or longer-term supplier agreements to lock in prices
+1. **A plain English risk brief** — 3-4 sentences translating the numbers into language a VP of Supply Chain could read in 10 seconds.
+2. **Recommended actions** — the top 3 highest-risk categories, each paired with a specific, templated recommendation (e.g. "qualify backup suppliers" for high Supplier risk, "review tariff classifications" for high Regulatory risk).
 
-The AI writes these in natural language so they sound thoughtful, not like canned responses.
+This is how AI is used in real enterprise software — not to make the decisions, but to translate already-computed data into language humans can act on.
+
+**If a company name is entered**, three more AI functions kick in:
+- It detects which of the 11 industries the company belongs to and auto-syncs the dropdown.
+- It estimates a small score adjustment per category based on real, named facts about that company (e.g. Apple's Foxconn relationship) — and explicitly does *nothing* if it isn't confident it recognizes the company, rather than inventing plausible-sounding details for a made-up name.
+- For recognized companies, it lists their actual known sourcing countries (often more than the generic industry's 4-5) on the Geopolitical Map tab.
 
 ---
 
 ## The Big Picture: How All the Pieces Connect
 
 ```
-User picks industry (Electronics)
+User picks an industry (or types a company name, which auto-detects its industry)
          ↓
-Data layer fetches live data from 4-5 APIs
+Data layer fetches live data from FRED, Alpha Vantage, World Bank, and NewsAPI
          ↓
-Risk model calculates 4 sub-scores
+Risk model calculates 5 sub-scores (Supplier, Commodity, Logistics, Geopolitical, Regulatory)
+         ↓
+If a recognized company was entered, AI nudges each sub-score based on real facts
          ↓
 Streamlit builds the dashboard:
    - Gauge chart (total score)
-   - Score cards (4 sub-scores)
+   - 5 score cards, each labeled Low/Moderate/High/Critical Risk
    - Commodity price charts
    - Shipping disruption panel
-   - World map
+   - World map (industry-level or company-specific sourcing countries)
          ↓
-AI generates summary + recommendations
+AI generates the Summary & Recommendations tab
          ↓
-User sees full risk picture in 5-10 seconds
+User sees the full risk picture in 5-10 seconds
 ```
 
 ---
@@ -164,9 +156,9 @@ User sees full risk picture in 5-10 seconds
 ## What Makes This Impressive to Employers
 
 1. **It's live** — any recruiter can open it, not just run on your laptop
-2. **It's integrated** — multiple data sources, not just one CSV file
-3. **It's domain-relevant** — you understand the actual risk categories that supply chain managers care about
-4. **It uses AI practically** — not "I used ChatGPT," but "I integrated an LLM API to translate structured data into business language"
-5. **It's deployed** — you shipped something, which most analysts never do
+2. **It's integrated** — 4 real data sources, not just one CSV file
+3. **It's domain-relevant across 11 industries** — not just one narrow vertical
+4. **It uses AI practically and honestly** — translating real computed data into language, with explicit guardrails against the AI fabricating company-specific "facts" it doesn't actually know
+5. **It's deployed and iterated on** — you shipped something, gathered feedback, and revised the model (including reversing a feature after reviewing it) — which is exactly how real product work happens
 
 Next: [docs/02-DATA-SOURCES.md](02-DATA-SOURCES.md) — The APIs, how to sign up, and what data each one gives you.
