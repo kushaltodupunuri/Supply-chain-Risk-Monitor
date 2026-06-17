@@ -109,6 +109,45 @@ def generate_risk_summary_safe(industry, result, commodity_changes, company_name
         )
 
 
+SUPPORTED_INDUSTRIES = ["Electronics", "Automotive", "Pharma", "Retail", "Food & Beverage"]
+
+
+def detect_company_industry(company_name):
+    """Identifies which of the 5 supported industries a company actually belongs to,
+    so the user doesn't have to also manually pick the matching industry dropdown
+    value (which is error-prone - e.g. picking "Automotive" while typing "Apple").
+
+    Returns one of SUPPORTED_INDUSTRIES, or None if the model isn't confident it
+    recognizes the company - same honesty calibration as the other company functions,
+    so an obscure or made-up name doesn't get force-matched to a random industry.
+    """
+    options_text = ", ".join(SUPPORTED_INDUSTRIES)
+    prompt = f"""Which ONE of these industries does the company "{company_name}" primarily belong to?
+
+Options: {options_text}
+
+Only answer with a specific industry if you are highly confident "{company_name}" is a
+real, specific company you recognize. If you don't recognize it, or it doesn't clearly
+fit one of these industries, respond with exactly: UNKNOWN
+
+Respond with ONLY one of these exact words and nothing else: {options_text}, UNKNOWN
+"""
+    raw = _call_llm(prompt).strip().lower()
+    if "food" in raw or "beverage" in raw:
+        return "Food & Beverage"
+    for industry in SUPPORTED_INDUSTRIES:
+        if industry.lower() in raw:
+            return industry
+    return None
+
+
+def detect_company_industry_safe(company_name):
+    try:
+        return detect_company_industry(company_name)
+    except Exception:
+        return None
+
+
 def generate_company_context(company_name, industry):
     """Generates a brief, clearly-caveated qualitative note about a specific company's
     known supply chain characteristics.

@@ -12,6 +12,7 @@ from src.ai.summary import (
     generate_recommendations,
     generate_company_context_safe,
     generate_company_score_adjustment,
+    detect_company_industry_safe,
 )
 
 st.set_page_config(
@@ -169,6 +170,11 @@ def get_cached_company_adjustment(company_name, industry):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
+def get_cached_company_industry(company_name):
+    return detect_company_industry_safe(company_name)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
 def get_cached_commodity_prices(industry):
     return get_commodity_prices(industry)
 
@@ -202,13 +208,26 @@ with st.sidebar:
     st.title("Risk Monitor Settings")
     st.markdown("---")
 
-    industry = st.selectbox("Select Industry", options=INDUSTRIES, index=0)
-
     company_name = st.text_input(
         "Company Name (optional)",
         placeholder="e.g., Apple, Toyota, Pfizer",
-        help="Enter a specific company to contextualize the analysis",
+        help="Enter a specific company - its industry is detected automatically",
     )
+
+    # A company name determines its own industry automatically - typing "Apple" works
+    # correctly no matter what the Industry dropdown is set to, instead of requiring the
+    # user to also manually pick the matching industry (error-prone: e.g. picking
+    # "Automotive" while typing "Apple" would silently score Apple as a car company).
+    # This MUST run before the selectbox below is instantiated - Streamlit only allows
+    # setting a keyed widget's session_state value before that widget is created, not after.
+    detected_industry = None
+    if company_name:
+        with st.spinner(f"Identifying {company_name}'s industry..."):
+            detected_industry = get_cached_company_industry(company_name)
+        if detected_industry and st.session_state.get("industry_select") != detected_industry:
+            st.session_state["industry_select"] = detected_industry
+
+    industry = st.selectbox("Select Industry", options=INDUSTRIES, index=0, key="industry_select")
 
     time_horizon = st.selectbox(
         "Risk Time Horizon", options=["30 days", "90 days", "180 days"], index=1
@@ -222,13 +241,20 @@ title_text = "Supply Chain Risk Monitor"
 if company_name:
     title_text += f" — {company_name}"
 st.title(title_text)
+
+badges = f"""
+    <span style="background:#EEF2FF; color:#4F46E5; padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700;">{industry}</span>
+    <span style="background:#F1F5F9; color:#475569; padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700;">{time_horizon} horizon</span>
+"""
+if company_name and not detected_industry:
+    badges += (
+        '<span style="background:#FEF3C7; color:#92400E; padding:5px 14px; '
+        'border-radius:20px; font-size:13px; font-weight:700;">'
+        f"Industry not recognized for '{company_name}' - showing dropdown selection</span>"
+    )
+
 st.markdown(
-    f"""
-    <div style="display:flex; gap:8px; margin-top:-10px; margin-bottom:20px;">
-        <span style="background:#EEF2FF; color:#4F46E5; padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700;">{industry}</span>
-        <span style="background:#F1F5F9; color:#475569; padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700;">{time_horizon} horizon</span>
-    </div>
-    """,
+    f"""<div style="display:flex; gap:8px; margin-top:-10px; margin-bottom:20px;">{badges}</div>""",
     unsafe_allow_html=True,
 )
 
