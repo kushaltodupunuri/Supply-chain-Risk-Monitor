@@ -290,8 +290,7 @@ st.markdown("## Overall Risk Assessment")
 if company_name:
     if company_adjustment["known"]:
         st.info(
-            f"📊 Scores adjusted for **{company_name}**-specific factors (AI-estimated from "
-            f"public knowledge, not verified data). {company_adjustment['reasoning']}"
+            f"📊 Scores adjusted for **{company_name}**-specific factors. {company_adjustment['reasoning']}"
         )
     else:
         st.caption(
