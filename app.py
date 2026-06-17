@@ -302,7 +302,7 @@ if company_name:
     with st.spinner(f"Checking company-specific factors for {company_name}..."):
         company_adjustment = get_cached_company_adjustment(company_name, industry)
     if company_adjustment["known"]:
-        for key in ("supplier", "commodity", "logistics", "geopolitical"):
+        for key in WEIGHTS:
             adjusted_sub_scores[key] = round(
                 max(0, min(100, adjusted_sub_scores[key] + company_adjustment[key])), 1
             )
@@ -318,7 +318,7 @@ result = {
 
 st.markdown("## Overall Risk Assessment")
 
-gauge_col, cards_col = st.columns([1, 2])
+gauge_col, _spacer = st.columns([1, 2])
 
 with gauge_col:
     fig = go.Figure(
@@ -357,18 +357,24 @@ with gauge_col:
         unsafe_allow_html=True,
     )
 
-with cards_col:
-    row1_col1, row1_col2 = st.columns(2)
-    row2_col1, row2_col2 = st.columns(2)
+SUB_SCORE_CARDS = [
+    ("supplier", "Supplier Concentration", "🏭"),
+    ("commodity", "Commodity Price", "📦"),
+    ("logistics", "Logistics & Shipping", "🚢"),
+    ("geopolitical", "Geopolitical", "🌍"),
+    ("regulatory", "Regulatory & Trade", "📜"),
+    ("currency", "Currency / FX", "💱"),
+    ("climate", "Climate & Disaster", "🌪️"),
+]
 
-    with row1_col1:
-        display_score_card("Supplier Concentration", result["sub_scores"]["supplier"], "🏭")
-    with row1_col2:
-        display_score_card("Commodity Price", result["sub_scores"]["commodity"], "📦")
-    with row2_col1:
-        display_score_card("Logistics & Shipping", result["sub_scores"]["logistics"], "🚢")
-    with row2_col2:
-        display_score_card("Geopolitical", result["sub_scores"]["geopolitical"], "🌍")
+st.markdown("<br>", unsafe_allow_html=True)
+cards_per_row = 4
+for row_start in range(0, len(SUB_SCORE_CARDS), cards_per_row):
+    row_cards = SUB_SCORE_CARDS[row_start:row_start + cards_per_row]
+    cols = st.columns(cards_per_row)
+    for col, (key, label, icon) in zip(cols, row_cards):
+        with col:
+            display_score_card(label, result["sub_scores"][key], icon)
 
 # ---- DETAIL TABS (placeholders for now) ----
 st.markdown("---")

@@ -143,6 +143,14 @@ Supply Chain Risk Monitor
 
 ---
 
+## Post-Launch: Expanded to 7 Risk Categories
+- [x] Added Currency/FX risk (`src/models/currency_risk.py`) using free FRED exchange rate series, volatility-based. Taiwan, Vietnam, Bangladesh, Argentina, and Ukraine have no free FRED FX series - those countries are excluded from the weighted calc rather than guessed.
+- [x] Added Regulatory/Trade risk (`src/models/regulatory_risk.py`) - hand-curated baseline per industry + live tariff/trade-policy news-spike layer (reuses `news_alerts.py`'s infrastructure with a new keyword set).
+- [x] Added Climate/Disaster risk (`src/models/climate_risk.py`) - hand-curated baseline per industry + live disaster-keyword news-spike layer.
+- [x] Rebalanced `risk_engine.py` weights from 30/25/25/20 (4 categories) to 20/15/15/15/15/10/10 (7 categories) - supplier concentration stays the largest single factor.
+- [x] Refactored `news_alerts.py` to accept a custom keyword set per call, so regulatory/climate signals reuse the same relative-spike detection and caching as the original country/route alerts instead of duplicating that logic.
+- [x] Score cards in `app.py` now render as a 4+3 grid instead of 2x2 to fit all 7 categories.
+
 ## Progress Tracker
 
 | Week | Status | Notes |
