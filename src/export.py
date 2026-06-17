@@ -3,6 +3,17 @@ from datetime import datetime
 
 import pandas as pd
 from fpdf import FPDF
+from openpyxl.drawing.image import Image as XLImage
+from PIL import Image as PILImage
+
+from src.charts import build_commodity_chart, build_geo_choropleth
+
+CHART_PNG_DIMS = (800, 320)  # px, used for commodity line charts in exports
+MAP_PNG_DIMS = (800, 440)  # px, used for the sourcing choropleth in exports
+
+
+def _fig_to_png(fig, width, height):
+    return fig.to_image(format="png", width=width, height=height, scale=2)
 
 RISK_COLOR_RGB = {
     "Low Risk": (46, 204, 113),
@@ -151,6 +162,27 @@ def generate_excel_report(
                     max(max_len + 2, 12), 80
                 )
 
+        # Charts/map are appended as images below each sheet's data table -
+        # openpyxl can't embed a live Plotly figure, only a rendered bitmap.
+        commodity_sheet = writer.sheets["Commodity Prices"]
+        row_cursor = len(commodity_df) + 3
+        width_px, height_px = CHART_PNG_DIMS
+        for name, history in commodity_data.items():
+            if len(history) < 2:
+                continue
+            png_bytes = _fig_to_png(build_commodity_chart(name, history), width_px, height_px)
+            xl_image = XLImage(PILImage.open(io.BytesIO(png_bytes)))
+            xl_image.width, xl_image.height = width_px // 2, height_px // 2
+            commodity_sheet.add_image(xl_image, f"A{row_cursor}")
+            row_cursor += (height_px // 2) // 19 + 2  # rows are ~19px tall by default
+
+        sourcing_sheet = writer.sheets["Sourcing Breakdown"]
+        map_width_px, map_height_px = MAP_PNG_DIMS
+        map_png_bytes = _fig_to_png(build_geo_choropleth(by_country), map_width_px, map_height_px)
+        map_xl_image = XLImage(PILImage.open(io.BytesIO(map_png_bytes)))
+        map_xl_image.width, map_xl_image.height = map_width_px // 2, map_height_px // 2
+        sourcing_sheet.add_image(map_xl_image, f"A{len(sourcing_df) + 3}")
+
     return buffer.getvalue()
 
 
@@ -164,6 +196,17 @@ def _fit_cell_text(pdf, text, width):
     while text and pdf.get_string_width(text + "...") > max_width:
         text = text[:-1]
     return (text + "...") if text else "..."
+
+
+def _place_image(pdf, epw, png_bytes, width_px, height_px, margin_bottom=15):
+    """Places an image at full content width, breaking to a new page first if
+    it wouldn't fit - fpdf2's image() doesn't auto-paginate like cell() does."""
+    height_mm = epw * (height_px / width_px)
+    if pdf.get_y() + height_mm > pdf.h - margin_bottom:
+        pdf.add_page()
+    pdf.set_x(10)
+    pdf.image(io.BytesIO(png_bytes), x=10, y=pdf.get_y(), w=epw, h=height_mm)
+    pdf.set_xy(10, pdf.get_y() + height_mm + 4)
 
 
 def _pdf_table(pdf, epw, headers, rows, col_weights):
@@ -193,11 +236,8 @@ def generate_pdf_report(
 ):
     """Returns the .pdf file as bytes, ready for st.download_button.
 
-    Deliberately doesn't embed the actual Plotly charts/map as images - that would
-    require the `kaleido` package, which bundles its own headless-Chromium-like
-    renderer and is a large, slow dependency for a free-tier Streamlit Cloud deploy.
-    The same underlying data (commodity trends, shipping routes, sourcing countries)
-    is instead rendered as plain tables.
+    Renders the same commodity/sourcing charts shown on the website via kaleido
+    (Plotly's static-image export backend) and embeds them as PNGs.
     """
     pdf = FPDF()
     pdf.add_page()
@@ -291,6 +331,14 @@ def generate_pdf_report(
     pdf.set_font("Helvetica", "B", 13)
     pdf.set_x(10)
     pdf.cell(epw, 8, "Commodity Price Trends", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+    chart_width_px, chart_height_px = CHART_PNG_DIMS
+    for name, history in commodity_data.items():
+        if len(history) < 2:
+            continue
+        png_bytes = _fig_to_png(build_commodity_chart(name, history), chart_width_px, chart_height_px)
+        _place_image(pdf, epw, png_bytes, chart_width_px, chart_height_px)
+
     commodity_rows = _commodity_rows(commodity_data)
     _pdf_table(
         pdf, epw,
@@ -315,6 +363,14 @@ def generate_pdf_report(
     pdf.set_x(10)
     pdf.cell(epw, 6, f"Overall Logistics Risk: {logistics_result['score']}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(6)
+
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_x(10)
+    pdf.cell(epw, 8, "Sourcing Risk Map", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+    map_width_px, map_height_px = MAP_PNG_DIMS
+    map_png_bytes = _fig_to_png(build_geo_choropleth(by_country), map_width_px, map_height_px)
+    _place_image(pdf, epw, map_png_bytes, map_width_px, map_height_px)
 
     pdf.set_font("Helvetica", "B", 13)
     pdf.set_x(10)
