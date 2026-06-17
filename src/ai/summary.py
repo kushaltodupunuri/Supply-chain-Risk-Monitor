@@ -148,6 +148,64 @@ def detect_company_industry_safe(company_name):
         return None
 
 
+def generate_company_sourcing_countries(company_name, industry):
+    """Lists the countries a specific, recognized company is publicly known to source
+    from or manufacture in - this is often a longer, more complete list than the 4-5
+    generic countries used for the industry-wide baseline (e.g. Apple's real supply
+    chain spans far more countries than just "Electronics in general").
+
+    Returns an empty list if the model doesn't have specific, real knowledge of this
+    company's sourcing - same honesty calibration as the other company functions. The
+    caller should fall back to the generic industry-level breakdown in that case.
+    """
+    prompt = f"""You are a supply chain analyst evaluating "{company_name}" in the {industry} industry.
+
+First, decide: is "{company_name}" a real, specific company you can name verified, well-known
+facts about (e.g. its actual named factories, suppliers, or sourcing countries)? Many company
+names you are given will be small, obscure, or entirely made up. Generic-sounding or
+unfamiliar names should be treated as NOT known - do not guess or extrapolate countries just
+because they sound typical for the {industry} industry, and do not invent a plausible-looking
+list just because the name sounds like a real company.
+
+If, and only if, "{company_name}" is a real company you have specific knowledge of, list the
+countries it is publicly known to source components from or manufacture in. List as many real,
+known countries as you're confident about - do not artificially limit to a small number if you
+know of more.
+
+For each country, give:
+- country: the full country name in English
+- country_code: the ISO 3166-1 alpha-2 code (e.g. "US", "CN", "TW")
+- product: what is sourced or manufactured there (short phrase)
+- share: your best estimate of relative sourcing share, as a rough percentage (all entries should sum to roughly 100)
+
+Respond with ONLY a JSON array, nothing else, in this exact format:
+[{{"country": "...", "country_code": "...", "product": "...", "share": number}}, ...]
+
+If "{company_name}" is not known with high confidence, respond with exactly: []
+When in doubt, respond with: []
+"""
+    raw = _call_llm(prompt)
+    start, end = raw.index("["), raw.rindex("]") + 1
+    data = json.loads(raw[start:end])
+    return [
+        {
+            "country": str(item.get("country", "")),
+            "country_code": str(item.get("country_code", "")).upper(),
+            "product": str(item.get("product", "")),
+            "share": float(item.get("share", 0)),
+        }
+        for item in data
+        if item.get("country") and item.get("country_code")
+    ]
+
+
+def generate_company_sourcing_countries_safe(company_name, industry):
+    try:
+        return generate_company_sourcing_countries(company_name, industry)
+    except Exception:
+        return []
+
+
 def generate_company_context(company_name, industry):
     """Generates a brief, clearly-caveated qualitative note about a specific company's
     known supply chain characteristics.

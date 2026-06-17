@@ -2,17 +2,18 @@ import streamlit as st
 import plotly.graph_objects as go
 
 from src.models.risk_engine import calculate_risk_score, WEIGHTS, get_risk_label
-from src.data.geopolitical import COUNTRY_NAMES
+from src.data.geopolitical import COUNTRY_NAMES, get_country_risk
 from src.data.commodity_prices import get_commodity_prices
 from src.data.shipping import SHIPPING_STATUS
 from src.models.logistics_risk import calculate_logistics_risk
-from src.models.geopolitical_risk import calculate_geopolitical_risk
+from src.models.geopolitical_risk import calculate_geopolitical_risk, wb_score_to_risk
 from src.ai.summary import (
     generate_risk_summary_safe,
     generate_recommendations,
     generate_company_context_safe,
     generate_company_score_adjustment,
     detect_company_industry_safe,
+    generate_company_sourcing_countries_safe,
 )
 
 st.set_page_config(
@@ -145,10 +146,35 @@ def get_country_name(code):
 # by English name string - "South Korea", "Taiwan", and "Malaysia" silently failed
 # to match anything under locationmode="country names" during testing.
 ALPHA2_TO_ALPHA3 = {
-    "CN": "CHN", "TW": "TWN", "KR": "KOR", "VN": "VNM", "MY": "MYS",
-    "IN": "IND", "MX": "MEX", "JP": "JPN", "DE": "DEU", "BD": "BGD",
-    "US": "USA", "BR": "BRA", "AR": "ARG", "AU": "AUS", "UA": "UKR",
-    "IE": "IRL", "SG": "SGP",
+    "AD": "AND", "AE": "ARE", "AF": "AFG", "AG": "ATG", "AL": "ALB", "AM": "ARM",
+    "AO": "AGO", "AR": "ARG", "AT": "AUT", "AU": "AUS", "AZ": "AZE", "BA": "BIH",
+    "BD": "BGD", "BE": "BEL", "BF": "BFA", "BG": "BGR", "BH": "BHR", "BI": "BDI",
+    "BJ": "BEN", "BN": "BRN", "BO": "BOL", "BR": "BRA", "BS": "BHS", "BT": "BTN",
+    "BW": "BWA", "BY": "BLR", "BZ": "BLZ", "CA": "CAN", "CD": "COD", "CF": "CAF",
+    "CG": "COG", "CH": "CHE", "CI": "CIV", "CL": "CHL", "CM": "CMR", "CN": "CHN",
+    "CO": "COL", "CR": "CRI", "CU": "CUB", "CY": "CYP", "CZ": "CZE", "DE": "DEU",
+    "DJ": "DJI", "DK": "DNK", "DO": "DOM", "DZ": "DZA", "EC": "ECU", "EE": "EST",
+    "EG": "EGY", "ER": "ERI", "ES": "ESP", "ET": "ETH", "FI": "FIN", "FJ": "FJI",
+    "FR": "FRA", "GA": "GAB", "GB": "GBR", "GE": "GEO", "GH": "GHA", "GM": "GMB",
+    "GN": "GIN", "GQ": "GNQ", "GR": "GRC", "GT": "GTM", "GW": "GNB", "GY": "GUY",
+    "HN": "HND", "HR": "HRV", "HT": "HTI", "HU": "HUN", "ID": "IDN", "IE": "IRL",
+    "IL": "ISR", "IN": "IND", "IQ": "IRQ", "IR": "IRN", "IS": "ISL", "IT": "ITA",
+    "JM": "JAM", "JO": "JOR", "JP": "JPN", "KE": "KEN", "KG": "KGZ", "KH": "KHM",
+    "KP": "PRK", "KR": "KOR", "KW": "KWT", "KZ": "KAZ", "LA": "LAO", "LB": "LBN",
+    "LK": "LKA", "LR": "LBR", "LS": "LSO", "LT": "LTU", "LU": "LUX", "LV": "LVA",
+    "LY": "LBY", "MA": "MAR", "MD": "MDA", "ME": "MNE", "MG": "MDG", "MK": "MKD",
+    "ML": "MLI", "MM": "MMR", "MN": "MNG", "MR": "MRT", "MT": "MLT", "MU": "MUS",
+    "MW": "MWI", "MX": "MEX", "MY": "MYS", "MZ": "MOZ", "NA": "NAM", "NE": "NER",
+    "NG": "NGA", "NI": "NIC", "NL": "NLD", "NO": "NOR", "NP": "NPL", "NZ": "NZL",
+    "OM": "OMN", "PA": "PAN", "PE": "PER", "PG": "PNG", "PH": "PHL", "PK": "PAK",
+    "PL": "POL", "PT": "PRT", "PY": "PRY", "QA": "QAT", "RO": "ROU", "RS": "SRB",
+    "RU": "RUS", "RW": "RWA", "SA": "SAU", "SD": "SDN", "SE": "SWE", "SG": "SGP",
+    "SI": "SVN", "SK": "SVK", "SL": "SLE", "SN": "SEN", "SO": "SOM", "SS": "SSD",
+    "SV": "SLV", "SY": "SYR", "SZ": "SWZ", "TD": "TCD", "TG": "TGO", "TH": "THA",
+    "TJ": "TJK", "TL": "TLS", "TM": "TKM", "TN": "TUN", "TR": "TUR", "TT": "TTO",
+    "TW": "TWN", "TZ": "TZA", "UA": "UKR", "UG": "UGA", "US": "USA", "UY": "URY",
+    "UZ": "UZB", "VE": "VEN", "VN": "VNM", "YE": "YEM", "ZA": "ZAF", "ZM": "ZMB",
+    "ZW": "ZWE",
 }
 
 
@@ -172,6 +198,11 @@ def get_cached_company_adjustment(company_name, industry):
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_cached_company_industry(company_name):
     return detect_company_industry_safe(company_name)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cached_company_sourcing(company_name, industry):
+    return generate_company_sourcing_countries_safe(company_name, industry)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -432,11 +463,37 @@ with tab3:
     geo_result = get_cached_geopolitical_risk(industry)
     by_country = geo_result["by_country"]
 
+    # For a recognized company, show its own (often longer) real sourcing list instead
+    # of the generic 4-5 country industry baseline - falls back to the industry baseline
+    # if the company isn't recognized or the model has no specific knowledge of it.
+    if company_name and detected_industry:
+        with st.spinner(f"Looking up {company_name}'s sourcing countries..."):
+            company_sourcing = get_cached_company_sourcing(company_name, industry)
+        if company_sourcing:
+            company_by_country = {}
+            for item in company_sourcing:
+                code = item["country_code"]
+                try:
+                    wb_data = get_country_risk(code)
+                    risk = round(wb_score_to_risk(wb_data["value"]), 1)
+                except Exception:
+                    continue  # skip countries World Bank has no data for, rather than guessing
+                company_by_country[code] = {
+                    "name": item["country"],
+                    "weight": item["share"] / 100,
+                    "final": risk,
+                    "product": item["product"],
+                }
+            if company_by_country:
+                by_country = company_by_country
+
+    mappable = {code: data for code, data in by_country.items() if code in ALPHA2_TO_ALPHA3}
+
     fig = go.Figure(
         data=go.Choropleth(
-            locations=[ALPHA2_TO_ALPHA3[code] for code in by_country],
+            locations=[ALPHA2_TO_ALPHA3[code] for code in mappable],
             locationmode="ISO-3",
-            z=[data["final"] for data in by_country.values()],
+            z=[data["final"] for data in mappable.values()],
             zmin=0,
             zmax=100,
             colorscale=[[0, "#2ECC71"], [0.3, "#F39C12"], [0.6, "#E67E22"], [1.0, "#E74C3C"]],
@@ -454,7 +511,10 @@ with tab3:
     st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("#### Sourcing Concentration Breakdown")
-    st.caption(f"All {len(by_country)} countries {industry} sources from, and what's actually sourced from each.")
+    if company_name and by_country is not geo_result["by_country"]:
+        st.caption(f"All {len(by_country)} countries {company_name} is known to source from.")
+    else:
+        st.caption(f"All {len(by_country)} countries {industry} sources from, and what's actually sourced from each.")
 
     for code, data in sorted(by_country.items(), key=lambda x: x[1]["weight"], reverse=True):
         color = get_risk_color(data["final"])
