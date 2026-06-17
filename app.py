@@ -55,6 +55,27 @@ st.markdown(
         color: #F1F5F9 !important;
     }
 
+    /* Segmented control (Risk Time Horizon buttons) - unselected options default to a
+       low-opacity style that's nearly invisible against the dark sidebar background. */
+    [data-testid="stSidebar"] button[data-testid="stBaseButton-segmented_control"] {
+        background-color: #1E293B !important;
+        border-color: #334155 !important;
+        opacity: 1 !important;
+    }
+    [data-testid="stSidebar"] button[data-testid="stBaseButton-segmented_control"] p {
+        color: #E2E8F0 !important;
+        opacity: 1 !important;
+    }
+    [data-testid="stSidebar"] button[data-testid="stBaseButton-segmented_controlActive"] {
+        background-color: #4F46E5 !important;
+        border-color: #4F46E5 !important;
+        opacity: 1 !important;
+    }
+    [data-testid="stSidebar"] button[data-testid="stBaseButton-segmented_controlActive"] p {
+        color: #FFFFFF !important;
+        opacity: 1 !important;
+    }
+
     /* Headings get tighter, bolder treatment than Streamlit's default */
     h1 {
         font-weight: 800 !important;
