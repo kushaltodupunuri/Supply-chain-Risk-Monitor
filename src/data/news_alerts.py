@@ -41,10 +41,6 @@ REGULATORY_KEYWORDS = [
     "customs", "trade restriction", "trade deal", "WTO dispute",
 ]
 
-CLIMATE_KEYWORDS = [
-    "earthquake", "flood", "drought", "hurricane", "typhoon", "wildfire", "monsoon",
-]
-
 SHIPPING_ROUTE_QUERIES = {
     "Red Sea / Suez Canal": '"Red Sea" OR "Suez Canal"',
     "Panama Canal": '"Panama Canal"',

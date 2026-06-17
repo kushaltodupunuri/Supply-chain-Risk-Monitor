@@ -150,6 +150,7 @@ Supply Chain Risk Monitor
 - [x] Rebalanced `risk_engine.py` weights from 30/25/25/20 (4 categories) to 20/15/15/15/15/10/10 (7 categories) - supplier concentration stays the largest single factor.
 - [x] Refactored `news_alerts.py` to accept a custom keyword set per call, so regulatory/climate signals reuse the same relative-spike detection and caching as the original country/route alerts instead of duplicating that logic.
 - [x] Score cards in `app.py` now render as a 4+3 grid instead of 2x2 to fit all 7 categories.
+- [x] **Reverted:** Currency/FX and Climate/Disaster removed again per user feedback after review - judged to add more noise than signal. Deleted `currency_risk.py`, `climate_risk.py`, `data/currency.py`, and `CLIMATE_KEYWORDS` outright rather than leaving them disabled-but-present. Back to 5 categories (Supplier 25%, Commodity/Logistics/Geopolitical 20% each, Regulatory 15%). Regulatory stayed since it was a separate, valued addition. Score cards now render as a single row of 5.
 
 ## Progress Tracker
 

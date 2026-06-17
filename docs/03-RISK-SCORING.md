@@ -2,29 +2,27 @@
 
 This explains the complete logic behind every score in the app, matching the actual code in `src/models/`. After reading this you will understand exactly what math is happening and why each decision was made.
 
-**This file was substantially rewritten after the original 4-category, 5-industry build.** The app now scores **7 risk dimensions** across **11 industries**, with an additional AI-driven company-specific adjustment layer. The original "Week 2" version of this doc is preserved in spirit below, but every formula now matches what's actually in the code.
+**This file has been rewritten twice as the model evolved.** The original build scored 4 categories across 5 industries. A later pass expanded to 7 categories (adding Currency/FX, Regulatory/Trade, and Climate/Disaster) across 11 industries. After hands-on review, **Currency/FX and Climate/Disaster were removed again** — the app now scores **5 risk dimensions** across **11 industries**, with an additional AI-driven company-specific adjustment layer. Every formula below matches what's actually in the code today.
 
 ---
 
 ## The Master Formula
 
-Every industry gets one overall risk score from 0 to 100. It's a weighted average of **seven** sub-scores (`src/models/risk_engine.py`):
+Every industry gets one overall risk score from 0 to 100. It's a weighted average of **five** sub-scores (`src/models/risk_engine.py`):
 
 ```python
 WEIGHTS = {
-    "supplier": 0.20,
-    "commodity": 0.15,
-    "logistics": 0.15,
-    "geopolitical": 0.15,
+    "supplier": 0.25,
+    "commodity": 0.20,
+    "logistics": 0.20,
+    "geopolitical": 0.20,
     "regulatory": 0.15,
-    "currency": 0.10,
-    "climate": 0.10,
 }
 ```
 
 **Why these weights?**
 
-This was rebalanced from the original 4-category 30/25/25/20 split when Currency, Regulatory, and Climate risk were added. **Supplier Concentration stays the single largest factor (20%)** — it's still the most fundamental structural risk: no amount of price stability or calm geopolitics protects you if you source from one factory. Commodity, Logistics, Geopolitical, and Regulatory are weighted equally (15% each) as the next tier of real, fast-moving operational risks. Currency and Climate get the lowest weight (10% each) since they're more specialized, narrower risks for most industries.
+**Supplier Concentration stays the largest single factor (25%)** — it's still the most fundamental structural risk: no amount of price stability or calm geopolitics protects you if you source from one factory. Commodity, Logistics, and Geopolitical are weighted equally (20% each) as real, fast-moving operational risks. Regulatory gets a slightly lower weight (15%) as a real but somewhat narrower risk.
 
 These weights are a judgment call, not a law of physics — what matters is that you can explain your reasoning, and that one extreme sub-score doesn't accidentally dominate or get buried (see "Calibration Notes" below for what actually happens in practice).
 
@@ -223,38 +221,7 @@ INDUSTRY_SOURCING_PRODUCTS = {
 
 ---
 
-## Sub-Score 5: Currency / FX Risk (0-100)
-
-**File:** `src/models/currency_risk.py` + `src/data/currency.py`
-
-**What it measures:** How volatile are the exchange rates of the countries this industry sources from? Unpredictable currency swings make landed costs hard to plan for, regardless of which direction they move.
-
-**Real data source:** FRED's free daily exchange-rate series (the Fed's H.10 release), weighted by each country's sourcing share:
-
-```python
-FX_SERIES_MAP = {
-    "CN": "DEXCHUS", "KR": "DEXKOUS", "MX": "DEXMXUS", "JP": "DEXJPUS",
-    "DE": "DEXUSEU", "IE": "DEXUSEU", "FR": "DEXUSEU",  # Eurozone countries share the EUR series
-    "IN": "DEXINUS", "BR": "DEXBZUS", "AU": "DEXUSAL", "SG": "DEXSIUS", "MY": "DEXMAUS",
-    "CA": "DEXCAUS", "GB": "DEXUSUK",
-}
-```
-
-**Why volatility, not direction:** FRED's quoting convention isn't consistent — some series are "local currency per USD" (e.g. Yuan per dollar), others are "USD per local currency" (e.g. dollars per Euro). Getting the directional sign right per currency pair adds real risk of being wrong. Volatility (coefficient of variation) is direction-agnostic and still a legitimate risk signal:
-
-```python
-def calculate_fx_volatility_score(history, days=90):
-    values = [recent values within the calendar window]
-    cv = statistics.stdev(values) / statistics.mean(values)
-    score = (cv / 0.04) * 100  # CV of 4% -> max risk; major-currency CVs are typically 1-3%
-    return max(0, min(100, score))
-```
-
-**Honest data gap:** Taiwan, Vietnam, Bangladesh, Argentina, and Ukraine have no free daily FRED series. Saudi Arabia and the UAE use currencies pegged to the dollar with no meaningful daily series, and Russia's series is sanctions-affected/discontinued. These countries are **excluded from the weighted calculation, with their weight redistributed among the countries that do have data** — rather than guessing a number for them. If an industry's sourcing countries have *no* FX data at all, the function returns a neutral default of 50.
-
----
-
-## Sub-Score 6: Regulatory & Trade Risk (0-100)
+## Sub-Score 5: Regulatory & Trade Risk (0-100)
 
 **File:** `src/models/regulatory_risk.py`
 
@@ -280,30 +247,19 @@ def calculate_regulatory_risk(industry, use_news_alerts=True):
 
 ---
 
-## Sub-Score 7: Climate & Disaster Risk (0-100)
+## Why Currency/FX and Climate/Disaster Were Removed
 
-**File:** `src/models/climate_risk.py`
+Both were built, tested, and working correctly (Currency used real FRED exchange-rate volatility; Climate used a hand-curated baseline plus a live disaster-news layer, same pattern as Regulatory). They were removed from the active model after review - not because the underlying logic was wrong, but because they were judged to add more noise than signal for what this dashboard needs to communicate. The code paths (`currency_risk.py`, `climate_risk.py`, `data/currency.py`, `CLIMATE_KEYWORDS`) were deleted outright rather than left disabled-but-present, since dead code that nothing imports is just confusion waiting to happen later.
 
-**What it measures:** How exposed is this industry's sourcing footprint to earthquakes, floods, droughts, hurricanes, and other disasters? Same two-layer pattern again:
-
-```python
-CLIMATE_BASELINE = {
-    "Electronics": {"base_score": 60, "summary": "Taiwan (semiconductor hub) faces earthquake/typhoon/water-scarcity exposure"},
-    "Food & Beverage": {"base_score": 65, "summary": "Direct exposure to droughts/floods affecting crop yields - inherently climate-sensitive"},
-    "Aerospace & Defense": {"base_score": 25, "summary": "Manufacturing concentrated in stable, developed regions"},
-    # ...11 industries total
-}
-```
-
-`CLIMATE_KEYWORDS` = earthquake, flood, drought, hurricane, typhoon, wildfire, monsoon.
+If you want to bring either back, the Currency design (FX volatility via FRED, direction-agnostic on purpose) and Climate design (hand-curated baseline + news-spike layer) are both still described in this project's git history and were genuinely sound implementations - this is a "removed by product judgment," not "removed because broken," distinction worth preserving.
 
 ---
 
-## The Fast Alert Layer (shared by Logistics, Geopolitical, Regulatory, Climate)
+## The Fast Alert Layer (shared by Logistics, Geopolitical, Regulatory)
 
 **File:** `src/data/news_alerts.py`
 
-Four of the seven sub-scores layer a live NewsAPI-driven signal on top of a slow baseline. This module went through several real, found-by-testing bug fixes worth understanding if you extend it:
+Three of the five sub-scores layer a live NewsAPI-driven signal on top of a slow baseline. This module went through several real, found-by-testing bug fixes worth understanding if you extend it:
 
 1. **Ratio, not raw count.** A naturally newsworthy country (China) always has thousands of risk-keyword mentions; a quiet one (Vietnam) might have a handful. Comparing each subject's *current week* to its *own* trailing-30-day baseline — not an absolute count — is what lets a genuine spike stand out for either, instead of permanently pegging noisy subjects at max risk.
 
@@ -333,7 +289,7 @@ MIN_RECENT_COUNT_FOR_ALERT = 3
 When a company name is entered, three AI-driven (Groq/Ollama) functions can adjust what's displayed — all using the same core honesty rule: **if the model isn't genuinely confident it has real, specific knowledge of the company, it must say so and change nothing**, rather than fabricating plausible-looking specifics.
 
 1. **`detect_company_industry()`** — identifies which of the 11 industries the company belongs to, and the sidebar's industry dropdown auto-syncs to match (so typing "Apple" works correctly even if "Automotive" happens to be selected).
-2. **`generate_company_score_adjustment()`** — estimates a -15 to +15 nudge per sub-score based on real, named facts (e.g. Apple's Foxconn relationship), defaulting to 0 across the board if the company isn't recognized with high confidence.
+2. **`generate_company_score_adjustment()`** — estimates a -15 to +15 nudge per sub-score (across all 5 current dimensions) based on real, named facts (e.g. Apple's Foxconn relationship), defaulting to 0 across the board if the company isn't recognized with high confidence.
 3. **`generate_company_sourcing_countries()`** — for recognized companies, lists their *actual* known sourcing countries (often more than the generic industry's 4-5), used to replace the generic Geopolitical Map breakdown with something company-specific.
 
 **This calibration took two real iterations.** The first prompt version confidently fabricated detailed, plausible-sounding sourcing breakdowns for entirely made-up company names ("Globex Manufacturing Solutions," "ZX Quark Dynamics Inc"). The fix was an explicit instruction to treat generic-sounding or unfamiliar names as NOT known by default, and to require the model name a *specific, real fact* before marking anything as known — verified by testing against both real companies and deliberately fictional/plausible-sounding fake ones.
@@ -349,9 +305,7 @@ def calculate_risk_score(industry):
         "commodity": calculate_commodity_risk(industry)["score"],
         "logistics": calculate_logistics_risk()["score"],
         "geopolitical": calculate_geopolitical_risk(industry)["score"],
-        "currency": calculate_currency_risk(industry)["score"],
         "regulatory": calculate_regulatory_risk(industry)["score"],
-        "climate": calculate_climate_risk(industry)["score"],
     }
     total = sum(sub_scores[key] * WEIGHTS[key] for key in WEIGHTS)
     return {"total": round(total, 1), "label": get_risk_label(total), "sub_scores": sub_scores}

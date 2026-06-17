@@ -47,8 +47,6 @@ def generate_risk_summary(industry, result, commodity_changes, company_name=None
         "Logistics & Shipping": sub_scores["logistics"],
         "Geopolitical Factors": sub_scores["geopolitical"],
         "Regulatory & Trade Policy": sub_scores["regulatory"],
-        "Currency / FX": sub_scores["currency"],
-        "Climate & Disaster": sub_scores["climate"],
     }
     biggest_risk = max(labeled_scores, key=labeled_scores.get)
 
@@ -71,8 +69,6 @@ Current risk scores (0-100, higher = more risk):
 - Logistics & Shipping Risk: {sub_scores['logistics']}/100
 - Geopolitical Risk: {sub_scores['geopolitical']}/100
 - Regulatory & Trade Policy Risk: {sub_scores['regulatory']}/100
-- Currency / FX Risk: {sub_scores['currency']}/100
-- Climate & Disaster Risk: {sub_scores['climate']}/100
 
 Key commodity price movements:
 {commodity_text}
@@ -270,18 +266,16 @@ lower risk than the industry average) to +15 (notably higher risk):
 - commodity: commodity price exposure risk
 - logistics: shipping/logistics risk
 - geopolitical: geopolitical exposure risk
-- currency: exchange-rate/currency exposure risk
 - regulatory: tariff/trade-policy exposure risk
-- climate: climate/natural-disaster exposure risk
 
 Respond with ONLY a JSON object, nothing else, in this exact format:
-{{"known": true or false, "supplier": number, "commodity": number, "logistics": number, "geopolitical": number, "currency": number, "regulatory": number, "climate": number, "reasoning": "one short sentence naming a specific real fact, or empty if not known"}}
+{{"known": true or false, "supplier": number, "commodity": number, "logistics": number, "geopolitical": number, "regulatory": number, "reasoning": "one short sentence naming a specific real fact, or empty if not known"}}
 
-If "{company_name}" is not known with high confidence, set "known" to false and all seven
+If "{company_name}" is not known with high confidence, set "known" to false and all five
 numeric adjustments to exactly 0. When in doubt, set "known" to false.
 """
     raw = _call_llm(prompt)
-    fields = ("supplier", "commodity", "logistics", "geopolitical", "currency", "regulatory", "climate")
+    fields = ("supplier", "commodity", "logistics", "geopolitical", "regulatory")
     try:
         start, end = raw.index("{"), raw.rindex("}") + 1
         data = json.loads(raw[start:end])
@@ -329,15 +323,6 @@ RECOMMENDATION_LIBRARY = {
         ),
         "priority": "Medium",
     },
-    "currency": {
-        "title": "Hedge currency exposure on key sourcing contracts",
-        "detail_template": (
-            "Given FX volatility in your {industry} sourcing countries, evaluate forward "
-            "contracts or natural hedging (matching local-currency costs with local-currency revenue) "
-            "for your largest supplier agreements."
-        ),
-        "priority": "Medium",
-    },
     "regulatory": {
         "title": "Review tariff classifications and trade compliance",
         "detail_template": (
@@ -346,15 +331,6 @@ RECOMMENDATION_LIBRARY = {
             "policy developments weekly."
         ),
         "priority": "High",
-    },
-    "climate": {
-        "title": "Build contingency plans for climate-exposed sourcing regions",
-        "detail_template": (
-            "For {industry} sourcing concentrated in climate-exposed regions, develop a documented "
-            "contingency plan (backup capacity, insurance coverage, safety stock) for the highest-risk "
-            "locations identified above."
-        ),
-        "priority": "Medium",
     },
 }
 

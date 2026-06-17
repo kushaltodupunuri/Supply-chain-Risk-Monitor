@@ -369,12 +369,10 @@ SUB_SCORE_CARDS = [
     ("logistics", "Logistics & Shipping", "🚢"),
     ("geopolitical", "Geopolitical", "🌍"),
     ("regulatory", "Regulatory & Trade", "📜"),
-    ("currency", "Currency / FX", "💱"),
-    ("climate", "Climate & Disaster", "🌪️"),
 ]
 
 st.markdown("<br>", unsafe_allow_html=True)
-cards_per_row = 4
+cards_per_row = 5
 for row_start in range(0, len(SUB_SCORE_CARDS), cards_per_row):
     row_cards = SUB_SCORE_CARDS[row_start:row_start + cards_per_row]
     cols = st.columns(cards_per_row)
