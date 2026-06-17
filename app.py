@@ -15,6 +15,7 @@ from src.ai.summary import (
     detect_company_industry_safe,
     generate_company_sourcing_countries_safe,
 )
+from src.export import generate_excel_report, generate_pdf_report
 
 st.set_page_config(
     page_title="Supply Chain Risk Monitor",
@@ -702,3 +703,22 @@ with tab4:
                 """,
                 unsafe_allow_html=True,
             )
+
+    st.markdown("### Export Report")
+    col_pdf, col_xlsx = st.columns(2)
+    with col_pdf:
+        st.download_button(
+            "Download PDF",
+            data=generate_pdf_report(industry, company_name, time_horizon, result, ai_summary, recommendations),
+            file_name=f"supply_chain_risk_{industry.lower().replace(' ', '_')}.pdf",
+            mime="application/pdf",
+            width="stretch",
+        )
+    with col_xlsx:
+        st.download_button(
+            "Download Excel",
+            data=generate_excel_report(industry, company_name, time_horizon, result, ai_summary, recommendations),
+            file_name=f"supply_chain_risk_{industry.lower().replace(' ', '_')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            width="stretch",
+        )
