@@ -28,8 +28,8 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-    html, body, [class*="css"], .stApp, .stMarkdown, p, div, span {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    html, body, .stApp, .stMarkdown, p {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
     /* Sidebar: dark slate for contrast against the light main content area */
