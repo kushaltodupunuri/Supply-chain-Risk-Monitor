@@ -1,20 +1,10 @@
-# Build Plan — Supply Chain Risk Monitor
-
-4 weeks, 2-3 hours per day. Each week has a clear goal and a done definition.
+Supply Chain Risk Monitor
 
 ---
 
-## Week 1 — Data Layer (APIs Working)
 
-**Goal:** By end of week 1, you can type a command and get live data back. No UI yet. Just raw data in your terminal.
 
-### Day 1-2: Environment Setup
-- [x] Install Python (3.10+) if not installed
-- [x] Install libraries: `pip install streamlit plotly pandas requests anthropic python-dotenv`
-- [x] Create a `.env` file for storing API keys (never put keys in code)
-- [x] Sign up for: FRED API, Alpha Vantage API, World Bank API (all free, takes 10 mins total)
-- [x] Confirm each API works with a basic test call
-- Reference: [docs/02-DATA-SOURCES.md](docs/02-DATA-SOURCES.md) for exact sign-up links and test calls
+
 
 ### Day 3-4: Commodity Price Data
 - [x] Write `src/data/commodity_prices.py`

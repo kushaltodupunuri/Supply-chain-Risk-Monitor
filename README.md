@@ -2,8 +2,6 @@
 
 A live, interactive web application that scores real-time supply chain risk across 5 industries using commodity prices, shipping disruption data, and geopolitical indicators.
 
-**Live App:** `[your-app-name].streamlit.app` *(URL generated after deployment)*
-**Built with:** Python, Streamlit, Plotly, REST APIs
 
 ---
 
@@ -25,7 +23,6 @@ A user opens the app, picks an industry (like Electronics or Pharma), and instan
 ```
 Supply-Chain-Risk-Monitor/
 ├── README.md                    ← You are here. The big picture.
-├── PLAN.md                      ← Week-by-week build plan
 ├── app.py                       ← The main Streamlit app (entry point)
 │
 ├── docs/
@@ -77,12 +74,6 @@ streamlit deploy app.py
 
 ---
 
-## Why This Project Works for Your Resume
 
-- It is a **live URL** recruiters can click — not a PDF or notebook
-- It covers **commodity risk, logistics, geopolitics** — relevant to every supply chain team
-- It shows **real-time data skills** — not just historical analysis
-- It uses **AI** in a practical, professional way
-- It is **deployed** — meaning you followed the project through to completion
 
-See [docs/07-RESUME-AND-PITCH.md](docs/07-RESUME-AND-PITCH.md) for exact resume bullet points and LinkedIn copy.
+
