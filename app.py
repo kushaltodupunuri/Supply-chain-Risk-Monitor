@@ -288,8 +288,12 @@ with st.sidebar:
 
     industry = st.selectbox("Select Industry *", options=INDUSTRIES, index=0, key="industry_select")
 
-    time_horizon = st.selectbox(
-        "Risk Time Horizon *", options=["30 days", "90 days", "180 days"], index=1
+    time_horizon = st.segmented_control(
+        "Risk Time Horizon *",
+        options=["30 days", "90 days", "180 days"],
+        format_func=lambda v: v.replace(" days", "d"),
+        default="90 days",
+        required=True,
     )
 
     st.markdown("---")
