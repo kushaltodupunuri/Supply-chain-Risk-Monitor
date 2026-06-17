@@ -47,20 +47,26 @@ def _cache_path(commodity_name):
     return os.path.join(CACHE_DIR, f"{safe_name}.json")
 
 
-def _read_cache(commodity_name, max_age_hours=6):
+def _read_cache(commodity_name, max_age_hours=24, failure_max_age_hours=1):
+    """A cached failure (empty list) expires much faster than a real cached price
+    history - this stops the app from retrying the same doomed, rate-limited API
+    call on every single page reload, while still recovering automatically within
+    about an hour without needing a restart.
+    """
     path = _cache_path(commodity_name)
     if not os.path.exists(path):
         return None
     with open(path) as f:
         cached = json.load(f)
     age_hours = (datetime.now() - datetime.fromisoformat(cached["timestamp"])).total_seconds() / 3600
-    return cached["data"] if age_hours < max_age_hours else None
+    effective_max_age = failure_max_age_hours if cached.get("is_failure") else max_age_hours
+    return cached["data"] if age_hours < effective_max_age else None
 
 
-def _write_cache(commodity_name, data):
+def _write_cache(commodity_name, data, is_failure=False):
     os.makedirs(CACHE_DIR, exist_ok=True)
     with open(_cache_path(commodity_name), "w") as f:
-        json.dump({"timestamp": datetime.now().isoformat(), "data": data}, f)
+        json.dump({"timestamp": datetime.now().isoformat(), "data": data, "is_failure": is_failure}, f)
 
 
 def _fetch_fred(series_id, days=90):
@@ -129,6 +135,7 @@ def get_commodity_history(commodity_name, days=90):
         else:
             data = _fetch_alpha(source_info["function"], days=days)
     except Exception:
+        _write_cache(commodity_name, [], is_failure=True)
         return []
 
     _write_cache(commodity_name, data)

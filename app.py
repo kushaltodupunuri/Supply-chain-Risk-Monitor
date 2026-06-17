@@ -394,13 +394,11 @@ with tab1:
     st.markdown("### Commodity Price Trends")
 
     commodity_data = get_cached_commodity_prices(industry)
+    unavailable_commodities = []
 
     for commodity_name, history in commodity_data.items():
         if len(history) < 2:
-            st.warning(
-                f"{commodity_name} price data is temporarily unavailable - this usually means "
-                f"the free-tier API quota (25 requests/day) was reached. It will refresh on its own."
-            )
+            unavailable_commodities.append(commodity_name)
             continue
 
         dates = [item["date"] for item in history]
@@ -430,6 +428,9 @@ with tab1:
             paper_bgcolor="#FFFFFF",
         )
         st.plotly_chart(fig, use_container_width=True)
+
+    if unavailable_commodities:
+        st.caption(f"Updating: {', '.join(unavailable_commodities)} will appear shortly.")
 
 with tab2:
     st.markdown("### Shipping Route Status")
