@@ -115,8 +115,9 @@ st.markdown(
     }
     .risk-card .risk-icon { font-size: 26px; margin-bottom: 8px; }
     .risk-card .risk-label {
-        font-weight: 600; font-size: 13px; color: #64748B;
-        text-transform: uppercase; letter-spacing: 0.04em;
+        font-weight: 600; font-size: 12px; color: #64748B;
+        text-transform: uppercase; letter-spacing: 0.02em;
+        word-break: keep-all; overflow-wrap: normal;
     }
     .risk-card .risk-value { font-size: 38px; font-weight: 800; margin-top: 4px; line-height: 1.1; }
 
@@ -269,7 +270,7 @@ def info_icon(tooltip_text):
         f'display:inline-flex; align-items:center; justify-content:center; '
         f'width:15px; height:15px; border-radius:50%; background:#CBD5E1; color:#fff; '
         f'font-size:10px; font-weight:700; font-style:italic; font-family:Georgia,serif; '
-        f'cursor:help; margin-left:5px; vertical-align:middle;">i</span>'
+        f'cursor:pointer; margin-left:5px; vertical-align:middle;">i</span>'
     )
 
 
