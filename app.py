@@ -349,11 +349,6 @@ tab1, tab2, tab3, tab4 = st.tabs(
 
 with tab1:
     st.markdown("### Commodity Price Trends")
-    st.caption(
-        "Note: Oil and Natural Gas show true daily prices. Copper, Aluminum, Wheat, "
-        "Corn, and Cotton only have monthly data on the free API tier, so their charts "
-        "span a longer history with fewer, more spaced-out points."
-    )
 
     commodity_data = get_cached_commodity_prices(industry)
 
