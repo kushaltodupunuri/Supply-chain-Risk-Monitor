@@ -274,12 +274,16 @@ with st.sidebar:
     st.caption("Data sources: FRED, Alpha Vantage, World Bank, NewsAPI")
 
 # ---- HEADER ----
-title_text = "Supply Chain Risk Monitor"
-if company_name:
-    title_text += f" — {company_name}"
-st.title(title_text)
+st.title("Supply Chain Risk Monitor")
 
-badges = f"""
+badges = ""
+if company_name:
+    badges += (
+        '<span style="background:#0F172A; color:#FFFFFF; padding:5px 14px; '
+        'border-radius:20px; font-size:13px; font-weight:700;">'
+        f"🏢 {company_name}</span>"
+    )
+badges += f"""
     <span style="background:#EEF2FF; color:#4F46E5; padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700;">{industry}</span>
     <span style="background:#F1F5F9; color:#475569; padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700;">{time_horizon} horizon</span>
 """
