@@ -226,12 +226,14 @@ def get_cached_geopolitical_risk(industry):
 
 def display_score_card(label, score, icon):
     color = get_risk_color(score)
+    risk_text = get_risk_label(score)
     st.markdown(
         f"""
         <div class="risk-card" style="--card-color: {color};">
             <div class="risk-icon">{icon}</div>
             <div class="risk-label">{label}</div>
             <div class="risk-value" style="color: {color};">{score}</div>
+            <div style="font-size: 13px; font-weight: 700; color: {color}; margin-top: 2px;">{risk_text}</div>
         </div>
         """,
         unsafe_allow_html=True,
