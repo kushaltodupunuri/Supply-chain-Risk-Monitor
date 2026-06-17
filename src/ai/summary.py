@@ -9,21 +9,34 @@ GROQ_MODEL = "llama-3.1-8b-instant"
 GROQ_API_KEY = get_secret("GROQ_API_KEY")
 
 
-def _call_llm(prompt):
+def _call_llm(prompt, temperature=None):
     """Uses Groq (free-tier cloud API) when a key is configured - this is what runs
     once deployed to Streamlit Cloud. Falls back to local Ollama otherwise, which is
     what runs during local development with no API key needed at all.
+
+    temperature=0 is used for calls that produce a number or classification (industry
+    detection, score adjustments, sourcing shares) - those feed directly into the
+    displayed risk score, and the default non-zero temperature was causing the same
+    company to get a different score on every fresh call (different device, different
+    session, cache expiry), which looked like a bug even though it was "just" sampling
+    randomness. Prose-only calls (summaries, recommendations) keep the default so they
+    don't read as robotic and repetitive.
     """
     if GROQ_API_KEY:
         client = Groq(api_key=GROQ_API_KEY)
+        kwargs = {"temperature": temperature} if temperature is not None else {}
         response = client.chat.completions.create(
             model=GROQ_MODEL,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=250,
+            seed=42,
+            **kwargs,
         )
         return response.choices[0].message.content.strip()
 
-    response = ollama.chat(model=OLLAMA_MODEL, messages=[{"role": "user", "content": prompt}])
+    options = {"temperature": temperature} if temperature is not None else {}
+    options["seed"] = 42
+    response = ollama.chat(model=OLLAMA_MODEL, messages=[{"role": "user", "content": prompt}], options=options)
     return response["message"]["content"].strip()
 
 
@@ -134,7 +147,7 @@ fit one of these industries, respond with exactly: UNKNOWN
 
 Respond with ONLY one of these exact words and nothing else: {options_text}, UNKNOWN
 """
-    raw = _call_llm(prompt).strip().lower()
+    raw = _call_llm(prompt, temperature=0).strip().lower()
     if "food" in raw or "beverage" in raw:
         return "Food & Beverage"
     for industry in SUPPORTED_INDUSTRIES:
@@ -186,7 +199,7 @@ Respond with ONLY a JSON array, nothing else, in this exact format:
 If "{company_name}" is not known with high confidence, respond with exactly: []
 When in doubt, respond with: []
 """
-    raw = _call_llm(prompt)
+    raw = _call_llm(prompt, temperature=0)
     start, end = raw.index("["), raw.rindex("]") + 1
     data = json.loads(raw[start:end])
     return [
@@ -274,7 +287,7 @@ Respond with ONLY a JSON object, nothing else, in this exact format:
 If "{company_name}" is not known with high confidence, set "known" to false and all five
 numeric adjustments to exactly 0. When in doubt, set "known" to false.
 """
-    raw = _call_llm(prompt)
+    raw = _call_llm(prompt, temperature=0)
     fields = ("supplier", "commodity", "logistics", "geopolitical", "regulatory")
     try:
         start, end = raw.index("{"), raw.rindex("}") + 1
