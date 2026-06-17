@@ -1,4 +1,6 @@
-# AI Summary & Recommendations — How It Works
+# Summary & Recommendations — How It Works
+
+*(This tab is labeled "Summary & Recommendations" in the app's UI - the content is still AI-generated under the hood, the word "AI" was just dropped from the displayed tab name.)*
 
 This explains the AI layer: what it does, why it's there, how to implement it, and how to prompt it correctly so it produces useful output.
 

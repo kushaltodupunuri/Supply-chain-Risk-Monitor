@@ -232,7 +232,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📈 Commodity Prices",
     "🚢 Shipping Routes",
     "🌍 Geopolitical Map",
-    "📋 AI Summary & Recommendations"
+    "📋 Summary & Recommendations"
 ])
 ```
 
@@ -396,7 +396,7 @@ with tab3:
 
 ---
 
-## Tab 4: AI Summary + Recommendations
+## Tab 4: Summary + Recommendations
 
 ```python
 with tab4:
