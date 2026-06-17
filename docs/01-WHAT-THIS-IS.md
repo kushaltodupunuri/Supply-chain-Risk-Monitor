@@ -92,7 +92,15 @@ If Apple buys most of its semiconductors from TSMC in Taiwan, and something happ
 Total Risk Score = (Supplier × 0.25) + (Commodity × 0.20) + (Logistics × 0.20) + (Geopolitical × 0.20) + (Regulatory × 0.15)
 ```
 
-See [docs/03-RISK-SCORING.md](03-RISK-SCORING.md) for the full math, including the real bugs found and fixed while building the live news-spike layer.
+**Why these specific numbers, not some other split?**
+
+- **Supplier Concentration gets the largest weight (25%)** because it's a *multiplier* on every other risk, not just another independent risk. If you source a critical part from one factory, calm commodity prices and stable politics don't save you when that factory has a fire. It's also the slowest risk to fix — re-architecting a supplier base takes years, not weeks — so getting this one wrong has the longest-lasting consequences.
+
+- **Commodity, Logistics, and Geopolitical are tied at 20% each** because they're the three risks that can each independently and immediately disrupt a supply chain, just through different mechanisms: Commodity hits your margins directly (a price spike shows up on the P&L next quarter), Logistics hits your delivery reliability directly (the goods exist but can't move), and Geopolitical is the "umbrella" risk that can suddenly *trigger* the other two at once (a new tariff or war can spike commodity costs and disrupt shipping routes simultaneously). None of the three is consistently more severe than the others across all 11 industries, so they're weighted equally rather than guessing a false hierarchy.
+
+- **Regulatory gets the smallest weight (15%)**, not because it doesn't matter, but because it overlaps with the other categories more than it stands alone — a new tariff usually shows up as a Commodity cost increase or a Geopolitical event too. Weighting it the same as the other three would effectively double-count a chunk of that risk.
+
+These weights are a documented judgment call, not a scientifically derived constant — see [docs/03-RISK-SCORING.md](03-RISK-SCORING.md) for the full math, the original 4-category weights before Regulatory was added, and the real bugs found and fixed while building the live news-spike layer.
 
 ---
 

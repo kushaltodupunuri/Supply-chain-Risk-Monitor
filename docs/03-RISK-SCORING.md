@@ -20,9 +20,13 @@ WEIGHTS = {
 }
 ```
 
-**Why these weights?**
+**Why these specific numbers?**
 
-**Supplier Concentration stays the largest single factor (25%)** — it's still the most fundamental structural risk: no amount of price stability or calm geopolitics protects you if you source from one factory. Commodity, Logistics, and Geopolitical are weighted equally (20% each) as real, fast-moving operational risks. Regulatory gets a slightly lower weight (15%) as a real but somewhat narrower risk.
+- **Supplier Concentration is the largest single factor (25%)** because it's a *multiplier* on every other risk, not an independent one. If you source a critical part from a single factory, calm commodity prices and stable politics don't protect you when that factory has a fire. It's also the slowest risk to fix — re-architecting a supplier base takes years — so getting it wrong has the longest-lasting consequences.
+
+- **Commodity, Logistics, and Geopolitical are tied at 20% each** because each can independently and immediately disrupt a supply chain through a different mechanism: Commodity hits margins directly, Logistics hits delivery reliability directly, and Geopolitical is the "umbrella" risk that can suddenly trigger the other two at once (a new tariff or war can spike commodity costs and disrupt shipping simultaneously). None is consistently more severe than the others across all 11 industries, so they're weighted equally rather than asserting a false hierarchy.
+
+- **Regulatory gets the smallest weight (15%)** not because it matters less, but because it overlaps with the other categories more than it stands alone — a new tariff usually shows up as a Commodity cost increase or a Geopolitical event too. Weighting it the same as the other three would effectively double-count part of that risk.
 
 These weights are a judgment call, not a law of physics — what matters is that you can explain your reasoning, and that one extreme sub-score doesn't accidentally dominate or get buried (see "Calibration Notes" below for what actually happens in practice).
 
