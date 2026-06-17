@@ -192,7 +192,10 @@ with tab1:
 
     for commodity_name, history in commodity_data.items():
         if len(history) < 2:
-            st.warning(f"Not enough data to chart {commodity_name}")
+            st.warning(
+                f"{commodity_name} price data is temporarily unavailable - this usually means "
+                f"the free-tier API quota (25 requests/day) was reached. It will refresh on its own."
+            )
             continue
 
         dates = [item["date"] for item in history]

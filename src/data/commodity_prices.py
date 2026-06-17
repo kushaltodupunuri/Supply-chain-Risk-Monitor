@@ -103,16 +103,25 @@ def _fetch_alpha(function_name, days=90):
 
 
 def get_commodity_history(commodity_name, days=90):
-    """Returns cleaned [{date, value}, ...] price history for one commodity. Uses cache when fresh."""
+    """Returns cleaned [{date, value}, ...] price history for one commodity. Uses cache when fresh.
+
+    Returns an empty list (rather than raising) if the underlying API call fails - e.g.
+    Alpha Vantage's free tier 25-requests/day limit, shared across all commodities and
+    all environments using this key. One exhausted commodity should degrade that one
+    chart, not crash the entire page - callers already handle len(history) < 2.
+    """
     cached = _read_cache(commodity_name)
     if cached is not None:
         return cached
 
     source_info = COMMODITY_SOURCE_MAP[commodity_name]
-    if source_info["source"] == "fred":
-        data = _fetch_fred(source_info["id"], days=days)
-    else:
-        data = _fetch_alpha(source_info["function"], days=days)
+    try:
+        if source_info["source"] == "fred":
+            data = _fetch_fred(source_info["id"], days=days)
+        else:
+            data = _fetch_alpha(source_info["function"], days=days)
+    except Exception:
+        return []
 
     _write_cache(commodity_name, data)
     return data
