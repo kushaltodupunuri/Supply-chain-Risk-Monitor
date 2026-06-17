@@ -221,6 +221,59 @@ def generate_company_sourcing_countries_safe(company_name, industry):
         return []
 
 
+def generate_known_suppliers(company_name, industry):
+    """Names specific, real suppliers/manufacturing partners for a recognized company
+    (e.g. TSMC and Foxconn for Apple), so the "High-Risk Suppliers" section can show
+    actual named entities instead of just sourcing countries.
+
+    Returns an empty list if the model doesn't have specific, real knowledge of named
+    suppliers for this company - same honesty calibration as the other company
+    functions. The caller should fall back to the country-level sourcing breakdown
+    in that case, since that's derived from real World Bank data either way.
+    """
+    prompt = f"""You are a supply chain analyst evaluating "{company_name}" in the {industry} industry.
+
+First, decide: do you have specific, verified knowledge of real, named suppliers or
+manufacturing partners for "{company_name}" (e.g. an actual company name like "TSMC" or
+"Foxconn", not a generic description like "a chip supplier")? Many company names you are
+given will be small, obscure, or entirely made up, and even for real companies you may not
+know specific supplier names. Do not guess or invent a plausible-sounding supplier name.
+
+If, and only if, you know specific real supplier names, list up to 5 of the most
+significant ones. For each, give:
+- supplier: the real, specific supplier company name
+- country: the country it primarily operates/manufactures in, full English name
+- country_code: the ISO 3166-1 alpha-2 code (e.g. "US", "CN", "TW")
+- product: what this supplier provides (short phrase)
+
+Respond with ONLY a JSON array, nothing else, in this exact format:
+[{{"supplier": "...", "country": "...", "country_code": "...", "product": "..."}}, ...]
+
+If you don't have specific named suppliers for "{company_name}", respond with exactly: []
+When in doubt, respond with: []
+"""
+    raw = _call_llm(prompt, temperature=0)
+    start, end = raw.index("["), raw.rindex("]") + 1
+    data = json.loads(raw[start:end])
+    return [
+        {
+            "supplier": str(item.get("supplier", "")),
+            "country": str(item.get("country", "")),
+            "country_code": str(item.get("country_code", "")).upper(),
+            "product": str(item.get("product", "")),
+        }
+        for item in data
+        if item.get("supplier") and item.get("country_code")
+    ]
+
+
+def generate_known_suppliers_safe(company_name, industry):
+    try:
+        return generate_known_suppliers(company_name, industry)
+    except Exception:
+        return []
+
+
 def generate_company_context(company_name, industry):
     """Generates a brief, clearly-caveated qualitative note about a specific company's
     known supply chain characteristics.
