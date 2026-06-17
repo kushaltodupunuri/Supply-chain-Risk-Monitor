@@ -108,6 +108,38 @@ def generate_risk_summary_safe(industry, result, commodity_changes, company_name
         )
 
 
+def generate_company_context(company_name, industry):
+    """Generates a brief, clearly-caveated qualitative note about a specific company's
+    known supply chain characteristics.
+
+    This intentionally does NOT change the quantitative risk scores. There is no free,
+    reliable data source that publishes verified supplier-country breakdowns per company,
+    so inventing specific numbers here would look precise while being fabricated. Instead,
+    the model is explicitly instructed to say when it doesn't have reliable knowledge of
+    a company, rather than guessing - this note is illustrative context, not a scored input.
+    """
+    prompt = f"""You are a supply chain analyst. Based on generally known public information,
+write a brief note about {company_name}'s known supply chain characteristics relevant to
+the {industry} industry - e.g. notable suppliers, manufacturing locations, or sourcing
+concentration, if these are part of well-established public knowledge.
+
+Rules:
+- If {company_name} is not a well-known company, or you don't have reliable public
+  knowledge of their supply chain, say so plainly instead of guessing or inventing details.
+- Do not state specific percentages or statistics unless they are widely reported public facts.
+- Keep it to 2-3 sentences, direct, no filler.
+- Output ONLY the note itself - no preamble.
+"""
+    return _call_llm(prompt)
+
+
+def generate_company_context_safe(company_name, industry):
+    try:
+        return generate_company_context(company_name, industry)
+    except Exception:
+        return f"Company-specific context for {company_name} is currently unavailable."
+
+
 RECOMMENDATION_LIBRARY = {
     "supplier": {
         "title": "Qualify backup suppliers in alternative regions",

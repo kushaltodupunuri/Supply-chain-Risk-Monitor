@@ -7,7 +7,7 @@ from src.data.commodity_prices import get_commodity_prices
 from src.data.shipping import SHIPPING_STATUS
 from src.models.logistics_risk import calculate_logistics_risk
 from src.models.geopolitical_risk import calculate_geopolitical_risk
-from src.ai.summary import generate_risk_summary_safe, generate_recommendations
+from src.ai.summary import generate_risk_summary_safe, generate_recommendations, generate_company_context_safe
 
 st.set_page_config(
     page_title="Supply Chain Risk Monitor",
@@ -330,7 +330,31 @@ with tab4:
             """,
             unsafe_allow_html=True,
         )
-        st.caption("Generated locally with Ollama (llama3.2). Based on current market data.")
+        st.caption("AI-generated based on current market data (Groq if deployed, local Ollama otherwise).")
+
+        if company_name:
+            st.markdown("#### Company Note")
+            with st.spinner(f"Looking up {company_name}..."):
+                company_note = generate_company_context_safe(company_name, industry)
+            st.markdown(
+                f"""
+                <div style="
+                    background: #fff8e1;
+                    border-left: 4px solid #f0ad4e;
+                    border-radius: 8px;
+                    padding: 16px;
+                    font-size: 14px;
+                    line-height: 1.5;
+                ">
+                    {company_note}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.caption(
+                "AI-generated from general public knowledge, illustrative only - not a "
+                "verified data source and does NOT affect the scores above."
+            )
 
     with col_rec:
         st.markdown("### Recommended Actions")
