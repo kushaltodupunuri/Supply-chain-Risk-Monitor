@@ -26,13 +26,14 @@ _UNICODE_REPLACEMENTS = {
     "“": '"', "”": '"',  # curly double quotes
     "…": "...",  # ellipsis
     "•": "-",  # bullet
-    " ": " ",  # non-breaking space
+    " ": " ",  # non-breaking space
 }
 
 
 def _pdf_safe(text):
     """Core Helvetica only supports latin-1; AI-generated text often has
     em-dashes/smart quotes that would otherwise crash fpdf2 mid-render."""
+    text = str(text)
     for char, replacement in _UNICODE_REPLACEMENTS.items():
         text = text.replace(char, replacement)
     return text.encode("latin-1", "replace").decode("latin-1")
@@ -48,7 +49,54 @@ def _risk_label(score):
     return "Critical Risk"
 
 
-def generate_excel_report(industry, company_name, time_horizon, result, ai_summary, recommendations):
+def _commodity_rows(commodity_data):
+    rows = []
+    for name, history in commodity_data.items():
+        if len(history) >= 2:
+            latest = history[-1]["value"]
+            pct_change = (history[-1]["value"] - history[0]["value"]) / history[0]["value"] * 100
+            rows.append({
+                "Commodity": name,
+                "Latest Value": round(latest, 2),
+                "% Change (period)": round(pct_change, 1),
+            })
+        else:
+            rows.append({"Commodity": name, "Latest Value": "N/A", "% Change (period)": "N/A"})
+    return rows
+
+
+def _shipping_rows(shipping_status, logistics_result):
+    rows = []
+    for route_name, route_data in shipping_status.items():
+        route_score = logistics_result["by_route"][route_name]
+        rows.append({
+            "Route": route_name,
+            "Status": route_data["status"],
+            "Delay (days)": route_data["delay_days"],
+            "Cost Premium (%)": route_data["cost_premium_pct"],
+            "Risk Score": route_score["final"],
+            "News Signal": f"+{route_score['alert_adjustment']}" if route_score["alert_adjustment"] > 0 else "None",
+        })
+    return rows
+
+
+def _sourcing_rows(by_country):
+    rows = []
+    for code, data in sorted(by_country.items(), key=lambda x: x[1]["weight"], reverse=True):
+        rows.append({
+            "Country": data["name"],
+            "Code": code,
+            "% of Sourcing": round(data["weight"] * 100, 1),
+            "Product": data["product"],
+            "Risk Score": data["final"],
+        })
+    return rows
+
+
+def generate_excel_report(
+    industry, company_name, time_horizon, result, ai_summary, recommendations,
+    commodity_data, shipping_status, logistics_result, by_country,
+):
     """Returns the .xlsx file as bytes, ready for st.download_button."""
     overview_df = pd.DataFrame([
         {"Field": "Industry", "Value": industry},
@@ -68,25 +116,34 @@ def generate_excel_report(industry, company_name, time_horizon, result, ai_summa
         for key, value in result["sub_scores"].items()
     ])
 
+    summary_df = pd.DataFrame([{"AI Risk Brief": ai_summary}])
+
     recs_df = pd.DataFrame([
         {"#": i, "Recommendation": rec["title"], "Detail": rec["detail"], "Priority": rec["priority"]}
         for i, rec in enumerate(recommendations, 1)
     ])
 
-    summary_df = pd.DataFrame([{"AI Risk Brief": ai_summary}])
+    commodity_df = pd.DataFrame(_commodity_rows(commodity_data))
+    shipping_df = pd.DataFrame(_shipping_rows(shipping_status, logistics_result))
+    sourcing_df = pd.DataFrame(_sourcing_rows(by_country))
+
+    sheets = [
+        ("Overview", overview_df),
+        ("Risk Scores", scores_df),
+        ("AI Summary", summary_df),
+        ("Recommendations", recs_df),
+        ("Commodity Prices", commodity_df),
+        ("Shipping Routes", shipping_df),
+        ("Sourcing Breakdown", sourcing_df),
+    ]
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        overview_df.to_excel(writer, sheet_name="Overview", index=False)
-        scores_df.to_excel(writer, sheet_name="Risk Scores", index=False)
-        summary_df.to_excel(writer, sheet_name="AI Summary", index=False)
-        recs_df.to_excel(writer, sheet_name="Recommendations", index=False)
+        for sheet_name, df in sheets:
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
 
         # Auto-fit column widths roughly to content length, since the default is too narrow.
-        for sheet_name, df in [
-            ("Overview", overview_df), ("Risk Scores", scores_df),
-            ("AI Summary", summary_df), ("Recommendations", recs_df),
-        ]:
+        for sheet_name, df in sheets:
             worksheet = writer.sheets[sheet_name]
             for col_idx, col_name in enumerate(df.columns, 1):
                 max_len = max([len(str(col_name))] + [len(str(v)) for v in df[col_name]])
@@ -97,14 +154,50 @@ def generate_excel_report(industry, company_name, time_horizon, result, ai_summa
     return buffer.getvalue()
 
 
-def generate_pdf_report(industry, company_name, time_horizon, result, ai_summary, recommendations):
+def _fit_cell_text(pdf, text, width):
+    """Truncates with an ellipsis if text is wider than its column - fpdf2's
+    cell() doesn't wrap or clip, it just overflows visually into the next cell."""
+    text = str(text)
+    max_width = width - 2  # small padding so text doesn't touch the border
+    if pdf.get_string_width(text) <= max_width:
+        return text
+    while text and pdf.get_string_width(text + "...") > max_width:
+        text = text[:-1]
+    return (text + "...") if text else "..."
+
+
+def _pdf_table(pdf, epw, headers, rows, col_weights):
+    """Draws a simple bordered table. col_weights are relative widths summing
+    to 1.0; converted to mm against the effective page width."""
+    col_widths = [epw * w for w in col_weights]
+
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_fill_color(241, 245, 249)
+    pdf.set_text_color(30, 41, 59)
+    pdf.set_x(10)
+    for header, width in zip(headers, col_widths):
+        pdf.cell(width, 7, _fit_cell_text(pdf, _pdf_safe(header), width), border=1, fill=True)
+    pdf.ln(7)
+
+    pdf.set_font("Helvetica", "", 9)
+    for row in rows:
+        pdf.set_x(10)
+        for value, width in zip(row, col_widths):
+            pdf.cell(width, 7, _fit_cell_text(pdf, _pdf_safe(value), width), border=1)
+        pdf.ln(7)
+
+
+def generate_pdf_report(
+    industry, company_name, time_horizon, result, ai_summary, recommendations,
+    commodity_data, shipping_status, logistics_result, by_country,
+):
     """Returns the .pdf file as bytes, ready for st.download_button.
 
-    Deliberately doesn't embed the actual Plotly gauge chart as an image - that would
+    Deliberately doesn't embed the actual Plotly charts/map as images - that would
     require the `kaleido` package, which bundles its own headless-Chromium-like
     renderer and is a large, slow dependency for a free-tier Streamlit Cloud deploy.
-    The score boxes are drawn directly with fpdf2's own rectangle/text primitives
-    instead, which is lightweight and looks clean without the extra dependency.
+    The same underlying data (commodity trends, shipping routes, sourcing countries)
+    is instead rendered as plain tables.
     """
     pdf = FPDF()
     pdf.add_page()
@@ -186,5 +279,52 @@ def generate_pdf_report(industry, company_name, time_horizon, result, ai_summary
         pdf.set_x(10)
         pdf.multi_cell(epw, 6, _pdf_safe(rec["detail"]), new_x="LMARGIN", new_y="NEXT")
         pdf.ln(2)
+
+    # --- Detailed Analysis ---
+    pdf.ln(4)
+    pdf.set_text_color(30, 41, 59)
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.set_x(10)
+    pdf.cell(epw, 9, "Detailed Analysis", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_x(10)
+    pdf.cell(epw, 8, "Commodity Price Trends", new_x="LMARGIN", new_y="NEXT")
+    commodity_rows = _commodity_rows(commodity_data)
+    _pdf_table(
+        pdf, epw,
+        ["Commodity", "Latest Value", "% Change (period)"],
+        [[r["Commodity"], r["Latest Value"], r["% Change (period)"]] for r in commodity_rows],
+        [0.5, 0.25, 0.25],
+    )
+    pdf.ln(6)
+
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_x(10)
+    pdf.cell(epw, 8, "Shipping Route Status", new_x="LMARGIN", new_y="NEXT")
+    shipping_rows = _shipping_rows(shipping_status, logistics_result)
+    _pdf_table(
+        pdf, epw,
+        ["Route", "Status", "Delay", "Cost +%", "Risk", "News Signal"],
+        [[r["Route"], r["Status"], r["Delay (days)"], r["Cost Premium (%)"], r["Risk Score"], r["News Signal"]] for r in shipping_rows],
+        [0.32, 0.15, 0.1, 0.13, 0.1, 0.2],
+    )
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_x(10)
+    pdf.cell(epw, 6, f"Overall Logistics Risk: {logistics_result['score']}", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(6)
+
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_x(10)
+    pdf.cell(epw, 8, "Sourcing Risk Breakdown", new_x="LMARGIN", new_y="NEXT")
+    sourcing_rows = _sourcing_rows(by_country)
+    _pdf_table(
+        pdf, epw,
+        ["Country", "Code", "% Sourcing", "Product", "Risk"],
+        [[r["Country"], r["Code"], r["% of Sourcing"], r["Product"], r["Risk Score"]] for r in sourcing_rows],
+        [0.25, 0.1, 0.13, 0.37, 0.15],
+    )
 
     return bytes(pdf.output())

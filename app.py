@@ -709,7 +709,10 @@ with tab4:
     with col_pdf:
         st.download_button(
             "Download PDF",
-            data=generate_pdf_report(industry, company_name, time_horizon, result, ai_summary, recommendations),
+            data=generate_pdf_report(
+                industry, company_name, time_horizon, result, ai_summary, recommendations,
+                commodity_data, SHIPPING_STATUS, logistics_result, by_country,
+            ),
             file_name=f"supply_chain_risk_{industry.lower().replace(' ', '_')}.pdf",
             mime="application/pdf",
             width="stretch",
@@ -717,7 +720,10 @@ with tab4:
     with col_xlsx:
         st.download_button(
             "Download Excel",
-            data=generate_excel_report(industry, company_name, time_horizon, result, ai_summary, recommendations),
+            data=generate_excel_report(
+                industry, company_name, time_horizon, result, ai_summary, recommendations,
+                commodity_data, SHIPPING_STATUS, logistics_result, by_country,
+            ),
             file_name=f"supply_chain_risk_{industry.lower().replace(' ', '_')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             width="stretch",
