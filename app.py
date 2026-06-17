@@ -182,6 +182,33 @@ KNOWN_COMPANIES = [
     "Coca-Cola", "PepsiCo", "Nestle", "Unilever", "Kraft Heinz",
 ]
 
+# Real corporate domains for the curated list above, used to fetch each company's
+# favicon (via Google's favicon service) as a stand-in for its logo. Deliberately only
+# covers this hand-picked list rather than guessing a domain for freely-typed companies -
+# a wrong guess would either silently show a stranger's logo or a broken image, neither
+# of which is worth the convenience for the long tail of typed-in names.
+COMPANY_LOGO_DOMAINS = {
+    "Apple": "apple.com", "Samsung": "samsung.com", "Sony": "sony.com", "LG": "lg.com",
+    "Dell": "dell.com", "HP": "hp.com", "Lenovo": "lenovo.com",
+    "Microsoft": "microsoft.com", "Google": "google.com", "IBM": "ibm.com",
+    "Oracle": "oracle.com", "Cisco": "cisco.com", "Intel": "intel.com", "Nvidia": "nvidia.com",
+    "Boeing": "boeing.com", "Lockheed Martin": "lockheedmartin.com", "Airbus": "airbus.com",
+    "Raytheon": "rtx.com", "Northrop Grumman": "northropgrumman.com",
+    "Pfizer": "pfizer.com", "Johnson & Johnson": "jnj.com", "Moderna": "modernatx.com",
+    "Merck": "merck.com", "Novartis": "novartis.com", "AstraZeneca": "astrazeneca.com",
+    "Toyota": "toyota.com", "Ford": "ford.com", "General Motors": "gm.com", "Tesla": "tesla.com",
+    "Honda": "honda.com", "Volkswagen": "vw.com", "BMW": "bmw.com",
+    "ExxonMobil": "exxonmobil.com", "Chevron": "chevron.com", "Shell": "shell.com",
+    "BP": "bp.com", "Saudi Aramco": "aramco.com",
+    "Walmart": "walmart.com", "Target": "target.com", "Costco": "costco.com", "Home Depot": "homedepot.com",
+    "Amazon": "amazon.com", "eBay": "ebay.com", "Alibaba": "alibaba.com", "Shopify": "shopify.com",
+    "Caterpillar": "caterpillar.com", "Deere & Company": "deere.com",
+    "Siemens": "siemens.com", "General Electric": "ge.com",
+    "Dow": "dow.com", "DuPont": "dupont.com", "BASF": "basf.com",
+    "Coca-Cola": "coca-colacompany.com", "PepsiCo": "pepsico.com", "Nestle": "nestle.com",
+    "Unilever": "unilever.com", "Kraft Heinz": "kraftheinzcompany.com",
+}
+
 
 def get_risk_color(score):
     if score <= 30:
@@ -317,10 +344,22 @@ st.title("Supply Chain Risk Monitor")
 
 badges = ""
 if company_name:
+    if company_name in COMPANY_LOGO_DOMAINS:
+        logo_url = f"https://www.google.com/s2/favicons?domain={COMPANY_LOGO_DOMAINS[company_name]}&sz=64"
+        company_icon = (
+            f'<img src="{logo_url}" alt="" '
+            f'style="width:18px; height:18px; object-fit:contain; border-radius:4px; '
+            f'background:#fff; padding:2px;" '
+            f"onerror=\"this.style.display='none'; this.nextElementSibling.style.display='inline';\">"
+            f'<span style="display:none;">🏢</span>'
+        )
+    else:
+        company_icon = "🏢"
     badges += (
         '<span style="background:#0F172A; color:#FFFFFF; padding:5px 14px; '
-        'border-radius:20px; font-size:13px; font-weight:700;">'
-        f"🏢 {company_name}</span>"
+        'border-radius:20px; font-size:13px; font-weight:700; display:inline-flex; '
+        'align-items:center; gap:7px;">'
+        f"{company_icon} {company_name}</span>"
     )
 badges += f"""
     <span style="background:#EEF2FF; color:#4F46E5; padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700;">{industry}</span>
