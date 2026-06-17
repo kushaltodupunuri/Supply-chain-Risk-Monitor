@@ -1,3 +1,4 @@
+import json
 import ollama
 from groq import Groq
 
@@ -138,6 +139,55 @@ def generate_company_context_safe(company_name, industry):
         return generate_company_context(company_name, industry)
     except Exception:
         return f"Company-specific context for {company_name} is currently unavailable."
+
+
+def generate_company_score_adjustment(company_name, industry):
+    """Estimates how a specific company's risk profile likely differs from the
+    industry-average baseline, using only the model's general public knowledge.
+
+    Returns adjustments in the range -15 to +15 for each of the 4 sub-scores, plus
+    `known` (whether the model claims reliable knowledge of this company) and a short
+    `reasoning` string. When `known` is False, the caller should treat all adjustments
+    as 0 - this is what keeps the system honest for obscure or made-up company names
+    instead of letting the model invent a plausible-looking number from nothing.
+    """
+    prompt = f"""You are a supply chain risk analyst evaluating "{company_name}" in the {industry} industry.
+
+First, decide: is "{company_name}" a real, specific company you can name verified, well-known
+facts about (e.g. its actual named suppliers, factories, or sourcing countries)? Many company
+names you are given will be small, obscure, or entirely made up. Generic-sounding or
+unfamiliar names should be treated as NOT known - do not guess or extrapolate from the name
+itself, and do not invent plausible-sounding details just because a name sounds like a real
+company. Only mark a company as known if you could list specific, real facts about it.
+
+If known, estimate how its supply chain risk likely differs from the {industry} industry
+average, using only real facts. For each dimension return an adjustment from -15 (notably
+lower risk than the industry average) to +15 (notably higher risk):
+- supplier: supplier/sourcing concentration risk
+- commodity: commodity price exposure risk
+- logistics: shipping/logistics risk
+- geopolitical: geopolitical exposure risk
+
+Respond with ONLY a JSON object, nothing else, in this exact format:
+{{"known": true or false, "supplier": number, "commodity": number, "logistics": number, "geopolitical": number, "reasoning": "one short sentence naming a specific real fact, or empty if not known"}}
+
+If "{company_name}" is not known with high confidence, set "known" to false and all four
+numeric adjustments to exactly 0. When in doubt, set "known" to false.
+"""
+    raw = _call_llm(prompt)
+    try:
+        start, end = raw.index("{"), raw.rindex("}") + 1
+        data = json.loads(raw[start:end])
+        return {
+            "known": bool(data.get("known", False)),
+            "supplier": max(-15, min(15, float(data.get("supplier", 0)))),
+            "commodity": max(-15, min(15, float(data.get("commodity", 0)))),
+            "logistics": max(-15, min(15, float(data.get("logistics", 0)))),
+            "geopolitical": max(-15, min(15, float(data.get("geopolitical", 0)))),
+            "reasoning": str(data.get("reasoning", "")),
+        }
+    except Exception:
+        return {"known": False, "supplier": 0, "commodity": 0, "logistics": 0, "geopolitical": 0, "reasoning": ""}
 
 
 RECOMMENDATION_LIBRARY = {

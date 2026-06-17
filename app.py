@@ -1,13 +1,18 @@
 import streamlit as st
 import plotly.graph_objects as go
 
-from src.models.risk_engine import calculate_risk_score
+from src.models.risk_engine import calculate_risk_score, WEIGHTS, get_risk_label
 from src.data.geopolitical import COUNTRY_NAMES
 from src.data.commodity_prices import get_commodity_prices
 from src.data.shipping import SHIPPING_STATUS
 from src.models.logistics_risk import calculate_logistics_risk
 from src.models.geopolitical_risk import calculate_geopolitical_risk
-from src.ai.summary import generate_risk_summary_safe, generate_recommendations, generate_company_context_safe
+from src.ai.summary import (
+    generate_risk_summary_safe,
+    generate_recommendations,
+    generate_company_context_safe,
+    generate_company_score_adjustment,
+)
 
 st.set_page_config(
     page_title="Supply Chain Risk Monitor",
@@ -54,6 +59,11 @@ def hex_to_rgba(hex_color, alpha=0.13):
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_cached_risk_score(industry):
     return calculate_risk_score(industry)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cached_company_adjustment(company_name, industry):
+    return generate_company_score_adjustment(company_name, industry)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -120,9 +130,44 @@ st.caption(f"Industry: {industry} | Horizon: {time_horizon}")
 
 # ---- RISK SCORE SECTION ----
 with st.spinner("Fetching live data and calculating risk scores..."):
-    result = get_cached_risk_score(industry)
+    base_result = get_cached_risk_score(industry)
+
+# Company name only nudges scores when the AI has real, specific knowledge of that
+# company - otherwise it stays at the pure industry baseline. This keeps the dashboard
+# honest: a made-up or obscure name can't silently inflate/deflate the displayed risk.
+adjusted_sub_scores = dict(base_result["sub_scores"])
+company_adjustment = None
+if company_name:
+    with st.spinner(f"Checking company-specific factors for {company_name}..."):
+        company_adjustment = get_cached_company_adjustment(company_name, industry)
+    if company_adjustment["known"]:
+        for key in ("supplier", "commodity", "logistics", "geopolitical"):
+            adjusted_sub_scores[key] = round(
+                max(0, min(100, adjusted_sub_scores[key] + company_adjustment[key])), 1
+            )
+
+adjusted_total = round(sum(adjusted_sub_scores[key] * WEIGHTS[key] for key in WEIGHTS), 1)
+result = {
+    "industry": industry,
+    "total": adjusted_total,
+    "label": get_risk_label(adjusted_total),
+    "sub_scores": adjusted_sub_scores,
+    "details": base_result["details"],
+}
 
 st.markdown("## Overall Risk Assessment")
+
+if company_name:
+    if company_adjustment["known"]:
+        st.info(
+            f"📊 Scores adjusted for **{company_name}**-specific factors (AI-estimated from "
+            f"public knowledge, not verified data). {company_adjustment['reasoning']}"
+        )
+    else:
+        st.caption(
+            f"ℹ️ No reliable company-specific data found for '{company_name}' - "
+            f"showing the {industry} industry baseline."
+        )
 
 gauge_col, cards_col = st.columns([1, 2])
 
