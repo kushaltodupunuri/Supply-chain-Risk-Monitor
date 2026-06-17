@@ -1,13 +1,11 @@
-import os
 import ollama
 from groq import Groq
-from dotenv import load_dotenv
 
-load_dotenv()
+from src.config import get_secret
 
 OLLAMA_MODEL = "llama3.2"
 GROQ_MODEL = "llama-3.1-8b-instant"
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_API_KEY = get_secret("GROQ_API_KEY")
 
 
 def _call_llm(prompt):

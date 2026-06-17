@@ -3,15 +3,14 @@ import json
 import time
 from datetime import datetime, timedelta
 import requests
-from dotenv import load_dotenv
 
-load_dotenv()
+from src.config import get_secret
 
 _LAST_ALPHA_CALL = 0
 _ALPHA_MIN_GAP_SECONDS = 13  # Free tier allows 5 calls/minute; this keeps us safely under that
 
-FRED_API_KEY = os.getenv("FRED_API_KEY")
-ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_KEY")
+FRED_API_KEY = get_secret("FRED_API_KEY")
+ALPHA_VANTAGE_KEY = get_secret("ALPHA_VANTAGE_KEY")
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "cache")
 

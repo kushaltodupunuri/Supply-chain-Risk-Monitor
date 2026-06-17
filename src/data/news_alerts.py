@@ -2,11 +2,10 @@ import os
 import json
 from datetime import datetime, timedelta
 import requests
-from dotenv import load_dotenv
 
-load_dotenv()
+from src.config import get_secret
 
-NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+NEWS_API_KEY = get_secret("NEWS_API_KEY")
 NEWS_API_URL = "https://newsapi.org/v2/everything"
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "cache")
 
