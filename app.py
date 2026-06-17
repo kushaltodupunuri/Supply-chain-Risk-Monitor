@@ -419,7 +419,6 @@ with tab2:
 
 with tab3:
     st.markdown(f"### Sourcing Risk Map — {industry}")
-    st.caption("Country color = World Bank political stability baseline + any current news-driven adjustment")
 
     geo_result = get_cached_geopolitical_risk(industry)
     by_country = geo_result["by_country"]
@@ -491,10 +490,6 @@ with tab4:
                 </div>
                 """,
                 unsafe_allow_html=True,
-            )
-            st.caption(
-                "AI-generated from general public knowledge, illustrative only - not a "
-                "verified data source and does NOT affect the scores above."
             )
 
     with col_rec:
