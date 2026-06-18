@@ -5,8 +5,9 @@ from src.models.geopolitical_risk import calculate_geopolitical_risk
 from src.models.regulatory_risk import calculate_regulatory_risk
 
 # Currency/FX and Climate/Disaster risk were tried and then dropped per user feedback.
-# Supplier concentration stays the largest single factor (the most fundamental
-# structural risk), with the rest spread across the remaining 5 dimensions.
+# Used as the fallback for any industry without its own weight breakdown below -
+# supplier concentration as the largest single factor (the most fundamental
+# structural risk), with the rest spread across the remaining 4 dimensions.
 WEIGHTS = {
     "supplier": 0.25,
     "commodity": 0.20,
@@ -14,6 +15,26 @@ WEIGHTS = {
     "geopolitical": 0.20,
     "regulatory": 0.15,
 }
+
+# Industry-specific weights: how much each of the 5 categories should count toward
+# the overall score. Weights shift by industry because the same dimension doesn't
+# matter equally everywhere - e.g. supplier concentration is the dominant risk for
+# semiconductor-dependent Electronics, but commodity price swings matter more for
+# Food & Beverage. Falls back to the flat WEIGHTS above for any industry not yet
+# given a specific breakdown.
+WEIGHTS_BY_INDUSTRY = {
+    "Electronics": {
+        "supplier": 0.30,
+        "geopolitical": 0.25,
+        "commodity": 0.20,
+        "logistics": 0.15,
+        "regulatory": 0.10,
+    },
+}
+
+
+def get_weights(industry):
+    return WEIGHTS_BY_INDUSTRY.get(industry, WEIGHTS)
 
 
 def get_risk_label(score):
@@ -45,13 +66,15 @@ def calculate_risk_score(industry):
         "regulatory": regulatory_result["score"],
     }
 
-    total = sum(sub_scores[key] * WEIGHTS[key] for key in WEIGHTS)
+    weights = get_weights(industry)
+    total = sum(sub_scores[key] * weights[key] for key in weights)
 
     return {
         "industry": industry,
         "total": round(total, 1),
         "label": get_risk_label(total),
         "sub_scores": {key: round(value, 1) for key, value in sub_scores.items()},
+        "weights": weights,
         "details": {
             "commodity": commodity_result,
             "logistics": logistics_result,

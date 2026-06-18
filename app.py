@@ -1,7 +1,7 @@
 import streamlit as st
 import plotly.graph_objects as go
 
-from src.models.risk_engine import calculate_risk_score, WEIGHTS, get_risk_label
+from src.models.risk_engine import calculate_risk_score, get_weights, get_risk_label
 from src.data.geopolitical import COUNTRY_NAMES, get_country_risk
 from src.data.commodity_prices import get_commodity_prices
 from src.data.shipping import SHIPPING_STATUS
@@ -410,32 +410,37 @@ with st.spinner("Fetching live data and calculating risk scores..."):
 # Company name only nudges scores when the AI has real, specific knowledge of that
 # company - otherwise it stays at the pure industry baseline. This keeps the dashboard
 # honest: a made-up or obscure name can't silently inflate/deflate the displayed risk.
+industry_weights = get_weights(industry)
 adjusted_sub_scores = dict(base_result["sub_scores"])
 company_adjustment = None
 if company_name:
     with st.spinner(f"Checking company-specific factors for {company_name}..."):
         company_adjustment = get_cached_company_adjustment(company_name, industry)
     if company_adjustment["known"]:
-        for key in WEIGHTS:
+        for key in industry_weights:
             adjusted_sub_scores[key] = round(
                 max(0, min(100, adjusted_sub_scores[key] + company_adjustment[key])), 1
             )
 
-adjusted_total = round(sum(adjusted_sub_scores[key] * WEIGHTS[key] for key in WEIGHTS), 1)
+adjusted_total = round(sum(adjusted_sub_scores[key] * industry_weights[key] for key in industry_weights), 1)
 result = {
     "industry": industry,
     "total": adjusted_total,
     "label": get_risk_label(adjusted_total),
     "sub_scores": adjusted_sub_scores,
+    "weights": industry_weights,
     "details": base_result["details"],
 }
 
 overall_tooltip = info_icon(
-    "Weighted average of 5 categories: Supplier Concentration (25%), "
-    "Commodity Price (20%), Logistics & Shipping (20%), Geopolitical (20%), "
-    "and Regulatory & Trade (15%). Supplier Concentration carries the most "
-    "weight since it's the most fundamental structural risk - even calm "
-    "prices and stable politics don't help if you source from one factory."
+    "Weighted average of 5 categories for "
+    f"{industry}: Supplier Concentration ({industry_weights['supplier']:.0%}), "
+    f"Commodity Price ({industry_weights['commodity']:.0%}), "
+    f"Logistics & Shipping ({industry_weights['logistics']:.0%}), "
+    f"Geopolitical ({industry_weights['geopolitical']:.0%}), "
+    f"and Regulatory & Trade ({industry_weights['regulatory']:.0%}). "
+    "Each category score itself combines Probability, Impact, and Current State "
+    "where independent real data supports it."
 )
 st.markdown(f"## Overall Risk Assessment{overall_tooltip}", unsafe_allow_html=True)
 

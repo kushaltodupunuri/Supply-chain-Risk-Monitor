@@ -10,11 +10,22 @@ STATUS_BASE_SCORES = {
 
 
 def route_disruption_to_score(route_data):
-    """Converts a route's hand-curated status into a 0-100 base score."""
-    base = STATUS_BASE_SCORES[route_data["status"]]
-    delay_adjustment = min(20, route_data["delay_days"] * 1.5)
-    cost_adjustment = min(10, route_data["cost_premium_pct"] * 0.3)
-    return min(100, base + delay_adjustment + cost_adjustment)
+    """Converts a route's hand-curated status into a 0-100 base score, by combining
+    three factors via geometric mean (rather than a raw product, which would
+    collapse toward 0 even when all three are merely "moderate"):
+    - current_state: the status snapshot itself (NORMAL/ELEVATED/DISRUPTED/SEVERE)
+    - probability: likelihood of continued disruption, proxied by typical delay days
+    - impact: severity if disrupted, proxied by the cost premium
+
+    Each factor is floored at 1 first - otherwise a NORMAL route (current_state=0)
+    would always show exactly 0 even when it has a small real delay/cost premium,
+    losing signal the previous additive model preserved.
+    """
+    current_state = STATUS_BASE_SCORES[route_data["status"]]
+    probability = min(100, route_data["delay_days"] / 20 * 100)
+    impact = min(100, route_data["cost_premium_pct"] / 40 * 100)
+    combined = (max(current_state, 1) * max(probability, 1) * max(impact, 1)) ** (1 / 3)
+    return min(100, combined)
 
 
 def calculate_logistics_risk(use_news_alerts=True):

@@ -37,6 +37,9 @@ def calculate_trend_score(prices, days=90):
 def calculate_volatility_score(prices, days=90):
     """0-100: how much the price has been swinging, via coefficient of variation.
     CV of 0.20 (20% swings) -> 100 (very volatile). CV of 0 -> 0 (stable).
+
+    Used as the Probability factor: a historically volatile commodity is more
+    likely to keep swinging, independent of where it happens to sit today.
     """
     windowed = _filter_to_window(prices, days)
     if len(windowed) < 3:
@@ -51,9 +54,37 @@ def calculate_volatility_score(prices, days=90):
     return max(0, min(100, score))
 
 
+def calculate_current_state_score(prices, days=90):
+    """0-100: where the latest price sits within its own recent range - 100 means
+    at/near the period high (the most exposed point to be procuring at), 0 means
+    at/near the period low. This is what makes it distinct from the trend score:
+    a commodity that spiked mid-window and has since retreated has a high trend
+    but a low current-state score.
+    """
+    windowed = _filter_to_window(prices, days)
+    if len(windowed) < 2:
+        windowed = prices[-2:] if len(prices) >= 2 else prices
+    values = [item["value"] for item in windowed]
+    if len(values) < 2:
+        return 50  # Not enough range to place the current price - treat as moderate
+
+    latest, lo, hi = values[-1], min(values), max(values)
+    if hi == lo:
+        return 50
+    return max(0, min(100, (latest - lo) / (hi - lo) * 100))
+
+
 def calculate_commodity_risk(industry):
     """Returns the overall commodity risk score plus a per-commodity breakdown,
     so the dashboard can show both the headline number and what's driving it.
+
+    Combines three independent factors - Probability (volatility), Impact (trend
+    magnitude), and Current State (where today's price sits in its own range) -
+    via geometric mean rather than a raw product. A raw product of three 0-1
+    fractions collapses toward 0 even when all three are "moderate" (0.5 x 0.5 x
+    0.5 = 0.125), which would make every commodity look artificially low-risk.
+    Geometric mean keeps three "50/100" factors combining to ~50 while still
+    pulling the score down when any one factor is genuinely low.
     """
     if industry not in INDUSTRY_COMMODITIES:
         raise ValueError(f"Unknown industry: {industry}")
@@ -62,12 +93,19 @@ def calculate_commodity_risk(industry):
 
     by_commodity = {}
     for name, history in price_data.items():
-        trend = calculate_trend_score(history)
-        volatility = calculate_volatility_score(history)
+        probability = calculate_volatility_score(history)
+        impact = calculate_trend_score(history)
+        current_state = calculate_current_state_score(history)
+        # Floor each factor at 1 before combining - otherwise a single factor
+        # hitting exactly 0 (e.g. today happens to be the exact period low) would
+        # force the whole geometric mean to 0, hiding genuinely elevated risk on
+        # the other two dimensions.
+        combined = (max(probability, 1) * max(impact, 1) * max(current_state, 1)) ** (1 / 3)
         by_commodity[name] = {
-            "trend": round(trend, 1),
-            "volatility": round(volatility, 1),
-            "combined": round(trend * 0.6 + volatility * 0.4, 1),
+            "probability": round(probability, 1),
+            "impact": round(impact, 1),
+            "current_state": round(current_state, 1),
+            "combined": round(combined, 1),
         }
 
     overall = sum(c["combined"] for c in by_commodity.values()) / len(by_commodity)

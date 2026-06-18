@@ -178,6 +178,7 @@ def generate_excel_report(
             "Category": CATEGORY_LABELS.get(key, key),
             "Score": value,
             "Risk Level": _risk_label(value),
+            "Weight": f"{result['weights'][key]:.0%}",
         }
         for key, value in result["sub_scores"].items()
     ])
@@ -422,13 +423,15 @@ def generate_pdf_report(
         pdf.set_text_color(30, 41, 59)
         pdf.set_font("Helvetica", "", 11)
         pdf.set_xy(17, y)
-        pdf.cell(90, 8, label)
-        pdf.set_xy(110, y)
+        pdf.cell(65, 8, label)
+        pdf.set_xy(85, y)
         pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(30, 8, f"{value}")
+        pdf.cell(25, 8, f"{value}")
         pdf.set_font("Helvetica", "", 10)
         pdf.set_text_color(*box_color)
-        pdf.cell(50, 8, risk_text)
+        pdf.cell(47, 8, risk_text)
+        pdf.set_text_color(120, 120, 120)
+        pdf.cell(35, 8, f"Weight: {result['weights'][key]:.0%}")
         pdf.set_text_color(30, 41, 59)
         pdf.set_x(10)
         pdf.ln(9)
