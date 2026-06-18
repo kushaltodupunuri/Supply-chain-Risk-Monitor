@@ -2,11 +2,11 @@
 
 This explains how Streamlit works, how to structure the dashboard, and exactly how to build each section. No web development experience required.
 
-**This doc covers the original 4-card, 4-tab build and is kept as the "how Streamlit basics work" tutorial — the live `app.py` has grown well beyond it.** Read "What's Actually in app.py Now" below first for an accurate map of the current dashboard, then use the sections after it to understand the underlying Streamlit mechanics (sidebar, tabs, gauge charts, choropleth maps) that are still built the same way.
+**This doc covers the original 4-card, 4-tab build and is kept as the "how Streamlit basics work" tutorial — the live `Risk_Monitor.py` (renamed from `app.py`) has grown well beyond it.** Read "What's Actually in Risk_Monitor.py Now" below first for an accurate map of the current dashboard, then use the sections after it to understand the underlying Streamlit mechanics (sidebar, tabs, gauge charts, choropleth maps) that are still built the same way.
 
 ---
 
-## What's Actually in app.py Now
+## What's Actually in Risk_Monitor.py Now
 
 The dashboard grew in this order; each addition is a real, working section in the live app:
 
@@ -18,6 +18,8 @@ The dashboard grew in this order; each addition is a real, working section in th
 6. **A Dark Mode toggle** in the sidebar, implemented as a conditional CSS override block injected only when the toggle is on — the default theme's CSS is never touched.
 
 See [docs/03-RISK-SCORING.md](03-RISK-SCORING.md) for what each new section's numbers actually mean, and [PLAN.md](../PLAN.md) for the full chronological history, including two features (an Executive Summary section, and a Risk Heat Map before it became the Risk Ranking bar chart) that were built, shipped, and then reverted after feedback.
+
+This is just `Risk_Monitor.py` — the app also has 6 more sidebar pages under `pages/` (SupplyIQ: Supply Chain Simulator, Demand Forecasting, Supplier Scorecard, Logistics & Route Optimizer, Cost Optimization, Executive Dashboard), built as a separate Streamlit multipage app extension and not covered by this doc. Streamlit auto-discovers anything in `pages/` and adds it to the sidebar with zero wiring required in `Risk_Monitor.py` itself.
 
 ---
 

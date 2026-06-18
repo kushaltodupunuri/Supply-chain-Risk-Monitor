@@ -1,19 +1,26 @@
-# Supply Chain Risk Monitor
+# SupplyIQ
 
-A live, interactive web application that scores real-time supply chain risk across **11 industries** (or a specific company, if recognized) using commodity prices, shipping disruption data, geopolitical indicators, trade-policy news, and a US sanctions screening check — with an AI layer that turns the numbers into plain-English analysis.
+A live, interactive web application with two parts under one sidebar: **Risk Monitor**, which scores real-time supply chain risk across **11 industries** (or a specific company, if recognized) using commodity prices, shipping disruption data, geopolitical indicators, trade-policy news, and a US sanctions screening check; and **6 SupplyIQ modules** that help a small business simulate, forecast, and optimize its own day-to-day supply chain from data it enters or uploads. Both share an AI layer (Risk Monitor) or transparent, adjustable-assumption math (SupplyIQ modules) that turns numbers into plain-English analysis.
 
 ---
 
 ## What This App Does (30-Second Version)
 
-A user opens the app, picks an industry (like Electronics or Pharma) or types a company name, and sees:
+**Risk Monitor** — a user picks an industry (like Electronics or Pharma) or types a company name, and sees:
 - A single risk score from 0 to 100, broken into 5 weighted categories (Supplier Concentration, Commodity Price, Logistics & Shipping, Geopolitical, Regulatory & Trade)
 - A real-time critical-risk alert banner, live commodity price charts, a shipping-route status panel, and a sourcing-risk world map with supplier-location markers
 - Supplier Risk (compliance screening, single-source dependency), Logistics Risk (shipment delays, port congestion), and Geographic & External Risk (live disaster/weather/conflict news alerts) breakdowns
 - A Dashboard Visualization area ranking all 11 industries by risk and tracking the current industry's score trend over time
 - An AI-written plain-English summary, 3 recommendations, and (for recognized companies) real named suppliers and sourcing countries
-- A one-click export of the full report to **PDF or Excel**
-- A dark mode toggle
+- A one-click export of the full report to **PDF or Excel**, and a dark mode toggle
+
+**SupplyIQ modules** — 6 additional sidebar pages aimed at a small business managing its own operations, each working from data the user enters or uploads (not live external feeds):
+- **Supply Chain Simulator** — 5 questions → a visual flow diagram of your supply chain with heuristic health scoring
+- **Demand Forecasting Engine** — upload sales history (or use demo data) → 3 forecasting models, seasonal/stockout/overstock alerts
+- **Supplier Performance Scorecard** — grade your suppliers A-F and estimate the cost of the worst ones
+- **Logistics & Route Optimizer** — compare carrier costs by destination, find shipment-consolidation savings
+- **Cost Optimization Engine** — pulls data from the two pages above to total up monthly savings opportunities
+- **Executive Dashboard** — all of the above on one screen, with prioritized action items
 
 ---
 
@@ -22,9 +29,17 @@ A user opens the app, picks an industry (like Electronics or Pharma) or types a 
 ```
 Supply-Chain-Risk-Monitor/
 ├── README.md                    ← You are here. The big picture.
-├── app.py                       ← The main Streamlit app (entry point)
+├── Risk_Monitor.py              ← The Risk Monitor entry point (main Streamlit script)
 ├── requirements.txt             ← Python dependencies
 ├── packages.txt                 ← System (apt) packages Streamlit Cloud needs for kaleido/Chrome
+│
+├── pages/                       ← The 6 SupplyIQ modules (Streamlit auto-discovers these as
+│   ├── 1_Supply_Chain_Simulator.py    sidebar pages alongside Risk_Monitor.py)
+│   ├── 2_Demand_Forecasting.py
+│   ├── 3_Supplier_Scorecard.py
+│   ├── 4_Logistics_Route_Optimizer.py
+│   ├── 5_Cost_Optimization.py
+│   └── 6_Executive_Dashboard.py
 │
 ├── docs/
 │   ├── 01-WHAT-THIS-IS.md       ← Plain English explanation of the whole app
@@ -39,6 +54,7 @@ Supply-Chain-Risk-Monitor/
     ├── config.py                ← Reads API keys from Streamlit secrets or .env
     ├── charts.py                ← Shared Plotly figure builders (used by both the app and exports)
     ├── export.py                ← Builds the full PDF/Excel report
+    ├── ui_helpers.py             ← Shared card/CSS styling used by the 6 SupplyIQ module pages
     ├── data/                    ← Code for fetching data from APIs (commodities, geopolitical,
     │                               shipping, news alerts, sanctions screening, score history)
     ├── models/                  ← Code for calculating each risk category's score
@@ -75,7 +91,9 @@ pip install -r requirements.txt
 #              TRADE_GOV_API_KEY (Supplier Compliance Status shows "not checked" without it)
 
 # 3. Run locally
-streamlit run app.py
+streamlit run Risk_Monitor.py
+#    (the 6 SupplyIQ modules in pages/ need no API keys - they work from data you
+#    enter or upload, and appear automatically in the sidebar)
 
 # 4. Deploy online (free) - push to GitHub and connect the repo at share.streamlit.io
 #    (packages.txt is already set up for the apt dependencies kaleido needs there)

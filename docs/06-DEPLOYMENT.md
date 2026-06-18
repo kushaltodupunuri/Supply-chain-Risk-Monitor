@@ -31,7 +31,7 @@ Streamlit (the company) offers free hosting for Streamlit apps. You connect your
 ## Prerequisites
 
 Before you can deploy, you need:
-1. All code working locally (`streamlit run app.py` works with no errors)
+1. All code working locally (`streamlit run Risk_Monitor.py` works with no errors)
 2. A GitHub account (free at github.com)
 3. A Streamlit Cloud account (free at streamlit.io/cloud)
 4. All API keys ready
@@ -100,11 +100,12 @@ __pycache__/
 
 ```
 Supply-Chain-Risk-Monitor/
-├── app.py              ← MUST be here, this is what Streamlit runs
+├── Risk_Monitor.py     ← MUST be here, this is what Streamlit runs
 ├── requirements.txt    ← MUST be here
 ├── packages.txt        ← MUST be here (apt deps kaleido needs for chart export)
 ├── .gitignore          ← MUST be here (protects your .env)
 ├── .env                ← NOT committed to GitHub (in .gitignore)
+├── pages/              ← The 6 SupplyIQ modules - Streamlit auto-discovers these
 ├── docs/
 └── src/
     ├── data/
@@ -155,8 +156,10 @@ git push -u origin main
 4. Fill in the form:
    - **Repository:** YOUR_USERNAME/supply-chain-risk-monitor
    - **Branch:** main
-   - **Main file path:** app.py
+   - **Main file path:** Risk_Monitor.py
 5. Click **"Advanced settings"** — this is where you add your secrets
+
+> **Already deployed under the old `app.py` name?** Renaming the file in the repo doesn't update an existing Streamlit Cloud app automatically - go to your app → ⋮ menu → **Settings** → **General** and change **Main file path** to `Risk_Monitor.py`, then save (this triggers a redeploy).
 
 ---
 

@@ -26,7 +26,7 @@ from src.data.news_alerts import get_country_disaster_alert, get_country_weather
 from src.data.score_history import record_score_snapshot, get_score_history
 
 st.set_page_config(
-    page_title="Supply Chain Risk Monitor",
+    page_title="Risk Monitor - SupplyIQ",
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="auto",
