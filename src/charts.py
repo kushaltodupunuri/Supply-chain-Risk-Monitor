@@ -73,6 +73,24 @@ def build_commodity_chart(commodity_name, history):
     return fig
 
 
+# Approximate country centroids (lat, lon) for the countries that actually show up
+# in our sourcing data - used to place a supplier-location marker on the map.
+# These are geographic centroids, not factory addresses - we don't have real
+# city/factory-level coordinates for named suppliers, so a precise-looking pin at a
+# specific street address would be fabricated. A country-level dot is honest about
+# what we actually know: which countries sourcing comes from, not which buildings.
+COUNTRY_CENTROIDS = {
+    "CN": (35.0, 103.0), "TW": (23.7, 121.0), "KR": (36.5, 127.8),
+    "VN": (16.0, 108.0), "MY": (4.2, 102.0), "IN": (22.0, 79.0),
+    "MX": (23.6, -102.5), "JP": (36.2, 138.3), "DE": (51.2, 10.4),
+    "BD": (23.7, 90.4), "US": (39.8, -98.6), "BR": (-10.3, -53.2),
+    "AR": (-34.0, -64.0), "AU": (-25.3, 133.8), "UA": (48.4, 31.2),
+    "IE": (53.4, -8.0), "SG": (1.35, 103.8),
+    "SA": (24.0, 45.0), "RU": (61.5, 105.3), "CA": (56.1, -106.3),
+    "FR": (46.6, 2.2), "GB": (54.0, -2.0),
+}
+
+
 def build_geo_choropleth(by_country):
     mappable = {code: data for code, data in by_country.items() if code in ALPHA2_TO_ALPHA3}
 
@@ -89,10 +107,108 @@ def build_geo_choropleth(by_country):
             colorbar_title="Risk Score",
         )
     )
+
+    markers = {code: data for code, data in by_country.items() if code in COUNTRY_CENTROIDS}
+    if markers:
+        lats = [COUNTRY_CENTROIDS[code][0] for code in markers]
+        lons = [COUNTRY_CENTROIDS[code][1] for code in markers]
+        labels = [f"{data['name']} - {data['weight']:.0%} of sourcing" for data in markers.values()]
+        fig.add_trace(
+            go.Scattergeo(
+                lat=lats,
+                lon=lons,
+                text=labels,
+                hoverinfo="text",
+                mode="markers",
+                marker=dict(
+                    size=[8 + data["weight"] * 35 for data in markers.values()],
+                    color="#1E293B",
+                    line=dict(width=1.5, color="white"),
+                    opacity=0.85,
+                ),
+                showlegend=False,
+            )
+        )
+
     fig.update_layout(
         geo=dict(showframe=False, showcoastlines=True, projection_type="equirectangular"),
         height=400,
         margin=dict(t=10, b=10, l=0, r=0),
         font=dict(family="Inter, sans-serif", color="#1E293B"),
+    )
+    return fig
+
+
+RISK_CATEGORY_LABELS = {
+    "supplier": "Supplier Concentration",
+    "commodity": "Commodity Price",
+    "logistics": "Logistics & Shipping",
+    "geopolitical": "Geopolitical",
+    "regulatory": "Regulatory & Trade",
+}
+
+
+def build_risk_heatmap(industry_scores):
+    """industry_scores: {industry_name: {category_key: score}}. Renders all
+    industries against all 5 categories so risk can be compared across the whole
+    portfolio at once, instead of one industry at a time."""
+    industries = list(industry_scores.keys())
+    category_keys = list(RISK_CATEGORY_LABELS.keys())
+    z = [[industry_scores[industry][key] for key in category_keys] for industry in industries]
+
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=z,
+            x=[RISK_CATEGORY_LABELS[key] for key in category_keys],
+            y=industries,
+            zmin=0,
+            zmax=100,
+            colorscale=[[0, "#2ECC71"], [0.3, "#F39C12"], [0.6, "#E67E22"], [1.0, "#E74C3C"]],
+            colorbar_title="Risk Score",
+            text=z,
+            texttemplate="%{text:.0f}",
+            textfont=dict(size=11),
+        )
+    )
+    fig.update_layout(
+        height=420,
+        margin=dict(t=20, b=20, l=10, r=10),
+        font=dict(family="Inter, sans-serif", color="#1E293B"),
+        xaxis=dict(side="top"),
+    )
+    return fig
+
+
+def build_score_trend_chart(history):
+    """history: list of {date, total, sub_scores} from score_history.get_score_history.
+    Starts with whatever real history has accumulated since tracking began - a
+    single point is rendered as a marker rather than a broken line."""
+    dates = [entry["date"] for entry in history]
+    totals = [entry["total"] for entry in history]
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=totals,
+            mode="lines+markers" if len(dates) > 1 else "markers",
+            line=dict(color="#4F46E5", width=2),
+            marker=dict(size=8, color="#4F46E5"),
+            fill="tozeroy",
+            fillcolor="rgba(79,70,229,0.13)",
+        )
+    )
+    fig.update_layout(
+        height=260,
+        margin=dict(t=20, b=20, l=40, r=20),
+        yaxis=dict(range=[0, 100], title="Overall Risk Score"),
+        # type="category" instead of the implicit date axis - with very few points
+        # (especially just one, when tracking has just started) Plotly's date axis
+        # auto-ticking falls back to absurd microsecond-precision labels since it
+        # has no real interval to infer from.
+        xaxis=dict(type="category"),
+        font=dict(family="Inter, sans-serif", color="#1E293B"),
+        plot_bgcolor="#FFFFFF",
+        paper_bgcolor="#FFFFFF",
     )
     return fig

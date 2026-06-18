@@ -17,9 +17,13 @@ from src.ai.summary import (
     generate_known_suppliers_safe,
 )
 from src.export import generate_excel_report, generate_pdf_report
-from src.charts import build_commodity_chart, build_geo_choropleth, ALPHA2_TO_ALPHA3, hex_to_rgba
+from src.charts import (
+    build_commodity_chart, build_geo_choropleth, ALPHA2_TO_ALPHA3, hex_to_rgba,
+    build_risk_heatmap, build_score_trend_chart, RISK_CATEGORY_LABELS,
+)
 from src.data.sanctions import check_sanctions_status_safe
 from src.data.news_alerts import get_country_disaster_alert, get_country_weather_alert, get_country_conflict_alert
+from src.data.score_history import record_score_snapshot, get_score_history
 
 st.set_page_config(
     page_title="Supply Chain Risk Monitor",
@@ -90,8 +94,14 @@ st.markdown(
     h2, h3 {
         font-weight: 700 !important;
         letter-spacing: -0.01em !important;
-        color: #1E293B !important;
         margin-top: 0.4em !important;
+    }
+    /* Excludes the risk-level heading ("Moderate Risk" etc.), which sets its own
+       inline color matching the risk score - this rule was unintentionally
+       clobbering that color to dark slate regardless of the actual risk level,
+       a bug that was hard to notice in light mode but glaring in dark mode. */
+    h2:not([style]), h3:not([style]) {
+        color: #1E293B !important;
     }
 
     /* Tabs */
@@ -125,6 +135,25 @@ st.markdown(
         word-break: keep-all; overflow-wrap: normal;
     }
     .risk-card .risk-value { font-size: 38px; font-weight: 800; margin-top: 4px; line-height: 1.1; }
+
+    /* Secondary KPI cards (Supplier/Logistics/Geographic Risk metrics) - same
+       visual language as .risk-card but smaller, since these sit one level below
+       the 5 main category cards in the visual hierarchy. */
+    .kpi-card {
+        background: #FFFFFF;
+        border-radius: 12px;
+        padding: 16px 18px;
+        margin: 6px 0;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.07);
+        border-left: 4px solid var(--card-color, #94A3B8);
+        height: 100%;
+    }
+    .kpi-card .kpi-label {
+        font-weight: 600; font-size: 12px; color: #64748B;
+        text-transform: uppercase; letter-spacing: 0.02em;
+    }
+    .kpi-card .kpi-value { font-size: 26px; font-weight: 800; margin-top: 6px; line-height: 1.15; }
+    .kpi-card .kpi-caption { font-size: 12.5px; color: #94A3B8; margin-top: 6px; line-height: 1.4; }
 
     /* AI text panels (risk brief, company note) */
     .note-card {
@@ -262,6 +291,16 @@ def get_alert_band(adjustment):
     return "Normal", "#2ECC71"
 
 
+def get_rag_status(score):
+    """Collapses the usual 4-band Low/Moderate/High/Critical scale into a classic
+    3-color Red/Amber/Green status for an at-a-glance executive summary row."""
+    if score <= 30:
+        return "Green", "#2ECC71"
+    elif score <= 60:
+        return "Amber", "#F39C12"
+    return "Red", "#E74C3C"
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_cached_risk_score(industry):
     return calculate_risk_score(industry)
@@ -373,9 +412,60 @@ def score_card_html(label, score, icon, description=None):
     )
 
 
+def kpi_card_html(label, value_html, caption=None, color="#94A3B8"):
+    """Same visual language as score_card_html's grid cards, for the secondary
+    metrics added across Supplier/Logistics/Geographic & External Risk - so those
+    sections read as KPI cards too, not plain inline text."""
+    caption_html = f'<div class="kpi-caption">{caption}</div>' if caption else ""
+    return (
+        f'<div class="kpi-card" style="--card-color: {color};">'
+        f'<div class="kpi-label">{label}</div>'
+        f'<div class="kpi-value" style="color: {color};">{value_html}</div>'
+        f'{caption_html}'
+        f'</div>'
+    )
+
+
 # ---- SIDEBAR ----
 with st.sidebar:
     st.title("Risk Monitor Settings")
+    dark_mode = st.toggle("Dark Mode", value=False)
+
+    if dark_mode:
+        # A separate override block rather than changing the base CSS above, so the
+        # default light theme (and all the contrast/readability fixes already tuned
+        # for it) stays completely untouched when the toggle is off. Risk colors
+        # (green/amber/red) are left alone since they're semantic, not theme-driven.
+        st.markdown(
+            """
+            <style>
+            .stApp { background-color: #0F172A !important; }
+            [data-testid="stAppViewContainer"] { background-color: #0F172A !important; }
+            [data-testid="stHeader"] { background-color: transparent !important; }
+            .stApp, .stApp p, .stApp label,
+            h1:not([style]), h2:not([style]), h3:not([style]), h4:not([style]),
+            h5:not([style]), h6:not([style]) { color: #E2E8F0 !important; }
+            /* Deliberately NOT overriding span color globally, and excluding any
+               heading with its own inline style (e.g. the "Moderate Risk" h3, which
+               sets its own semantic risk color) - those set their own color for a
+               reason, and a blanket override here makes them unreadable or wrong
+               (e.g. light text on the tooltip "i" icon's light background, or the
+               risk-level heading losing its red/amber/green meaning). */
+            .risk-card, .kpi-card, .note-card, .rec-card {
+                background: #1E293B !important;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important;
+            }
+            .risk-card .risk-label, .kpi-card .kpi-label { color: #94A3B8 !important; }
+            .kpi-card .kpi-caption { color: #64748B !important; }
+            [data-baseweb="tab-list"] { background-color: #1E293B !important; }
+            .stTabs [data-baseweb="tab"] { color: #94A3B8 !important; }
+            .stTabs [aria-selected="true"] { color: #E2E8F0 !important; }
+            [data-testid="stMetricValue"], [data-testid="stMetricLabel"] { color: #E2E8F0 !important; }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
     st.markdown("---")
 
     company_name = st.selectbox(
@@ -481,6 +571,25 @@ result = {
     "details": base_result["details"],
 }
 
+# Computed early (rather than inside the Summary tab where it's also displayed) so
+# a real-time banner can surface critical alerts right at the top of the page,
+# before the user even picks a tab.
+critical_alerts = sorted(
+    [(RISK_CATEGORY_LABELS[key], score) for key, score in result["sub_scores"].items() if score > 60],
+    key=lambda x: -x[1],
+)
+if critical_alerts:
+    alert_text = " &nbsp;|&nbsp; ".join(f"{label}: {score}" for label, score in critical_alerts)
+    st.markdown(
+        f"""<div style="background:#FEE2E2; border:1px solid #FCA5A5; border-radius:10px;
+        padding:12px 18px; margin-bottom:16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span style="font-size:20px;">⚠️</span>
+        <span style="color:#991B1B; font-weight:700;">Critical Risk Alert:</span>
+        <span style="color:#991B1B;">{alert_text}</span>
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
 overall_tooltip = info_icon(
     "Weighted average of 5 categories for "
     f"{industry}: Supplier Concentration ({industry_weights['supplier']:.0%}), "
@@ -572,6 +681,47 @@ st.markdown(
     f'<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px;">{cards_html}</div>',
     unsafe_allow_html=True,
 )
+
+with st.expander("Drill down into a category"):
+    drill_tabs = st.tabs([label for _, label, _, _ in SUB_SCORE_CARDS])
+
+    with drill_tabs[0]:  # Supplier
+        st.caption(
+            "No further breakdown available - this is a single hand-curated industry baseline, "
+            "not assembled from multiple sub-signals like the other categories."
+        )
+
+    with drill_tabs[1]:  # Commodity
+        for name, data in result["details"]["commodity"]["by_commodity"].items():
+            st.markdown(f"**{name}**")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Probability", data["probability"])
+            c2.metric("Impact", data["impact"])
+            c3.metric("Current State", data["current_state"])
+            c4.metric("Combined", data["combined"])
+
+    with drill_tabs[2]:  # Logistics
+        for name, data in result["details"]["logistics"]["by_route"].items():
+            st.markdown(f"**{name}**")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Base", data["base"])
+            c2.metric("News Alert", f"+{data['alert_adjustment']}")
+            c3.metric("Final", data["final"])
+
+    with drill_tabs[3]:  # Geopolitical
+        for code, data in result["details"]["geopolitical"]["by_country"].items():
+            st.markdown(f"**{data['name']}** ({code}) - sourcing weight {data['weight']:.0%}")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Base", data["base"])
+            c2.metric("News Alert", f"+{data['alert_adjustment']}")
+            c3.metric("Final", data["final"])
+
+    with drill_tabs[4]:  # Regulatory
+        reg = result["details"]["regulatory"]
+        c1, c2 = st.columns(2)
+        c1.metric("Baseline", reg["base"])
+        c2.metric("News Alert", f"+{reg['alert_adjustment']}")
+        st.caption(reg["summary"])
 
 # ---- DETAIL TABS (placeholders for now) ----
 st.markdown("---")
@@ -698,8 +848,6 @@ with tab3:
         )
 
 with tab4:
-    sub_score_labels = {key: label for key, label, icon, description in SUB_SCORE_CARDS}
-
     st.markdown("### Executive Summary")
     exec_col1, exec_col2 = st.columns(2)
 
@@ -707,10 +855,6 @@ with tab4:
         st.metric("Overall Risk Score", f"{result['total']} / 100", result["label"])
 
         st.markdown("**Critical Risk Alerts**")
-        critical_alerts = sorted(
-            [(sub_score_labels[key], score) for key, score in result["sub_scores"].items() if score > 60],
-            key=lambda x: -x[1],
-        )
         if critical_alerts:
             for label, score in critical_alerts:
                 st.markdown(f"- {label}: **{score}** ({get_risk_label(score)})")
@@ -778,68 +922,65 @@ with tab4:
 
     st.markdown("---")
     st.markdown("### Supplier Risk")
-    sr_col1, sr_col2 = st.columns(2)
 
-    with sr_col1:
-        st.markdown("**Supplier Risk Rating**")
-        supplier_score = result["sub_scores"]["supplier"]
-        st.markdown(
-            f"<span style='color:{get_risk_color(supplier_score)}; font-weight:700; font-size:22px;'>"
-            f"{supplier_score}</span> <span style='color:{get_risk_color(supplier_score)}; font-weight:700;'>"
-            f"({get_risk_label(supplier_score)})</span>",
-            unsafe_allow_html=True,
-        )
+    supplier_score = result["sub_scores"]["supplier"]
 
-        st.markdown("**Single Source Dependency**")
-        if by_country:
-            top_code, top_data = max(by_country.items(), key=lambda x: x[1]["weight"])
-            top_pct = top_data["weight"] * 100
-            if top_pct >= 50:
-                dep_label, dep_color = "High", "#E74C3C"
-            elif top_pct >= 30:
-                dep_label, dep_color = "Moderate", "#F39C12"
-            else:
-                dep_label, dep_color = "Low", "#2ECC71"
-            st.markdown(
-                f"<span style='color:{dep_color}; font-weight:700;'>{dep_label}</span> - "
-                f"{top_pct:.0f}% sourced from {top_data['name']}",
-                unsafe_allow_html=True,
-            )
+    if by_country:
+        top_code, top_data = max(by_country.items(), key=lambda x: x[1]["weight"])
+        top_pct = top_data["weight"] * 100
+        if top_pct >= 50:
+            dep_label, dep_color = "High", "#E74C3C"
+        elif top_pct >= 30:
+            dep_label, dep_color = "Moderate", "#F39C12"
         else:
-            dep_label, dep_color, top_data, top_pct = "Unknown", "#94A3B8", None, 0
-            st.caption("No sourcing data available.")
+            dep_label, dep_color = "Low", "#2ECC71"
+        dependency_value = f"{dep_label}"
+        dependency_caption = f"{top_pct:.0f}% sourced from {top_data['name']}"
+    else:
+        dep_label, dep_color, top_data, top_pct = "Unknown", "#94A3B8", None, 0
+        dependency_value = "Unknown"
+        dependency_caption = "No sourcing data available."
 
-    with sr_col2:
-        st.markdown("**Supplier Compliance Status**")
-        compliance_targets = (
-            [s["supplier"] for s in known_suppliers] if known_suppliers
-            else ([company_name] if company_name else [])
+    compliance_targets = (
+        [s["supplier"] for s in known_suppliers] if known_suppliers
+        else ([company_name] if company_name else [])
+    )
+    compliance_results = []
+    if compliance_targets:
+        with st.spinner("Checking US Consolidated Screening List..."):
+            compliance_results = [(name, get_cached_sanctions_status(name)) for name in compliance_targets]
+
+    flagged = [(name, r) for name, r in compliance_results if r["sanctioned"]]
+    any_checked = any(r["checked"] for _, r in compliance_results)
+
+    if flagged:
+        compliance_value, compliance_color = "Flagged", "#E74C3C"
+        compliance_caption = "; ".join(f"{name}: {r['matched_name']} (verify manually)" for name, r in flagged)
+    elif any_checked:
+        compliance_value, compliance_color = "Clear", "#2ECC71"
+        compliance_caption = "No name match found on the US Consolidated Screening List."
+    elif not compliance_targets:
+        compliance_value, compliance_color = "N/A", "#94A3B8"
+        compliance_caption = "No company or named supplier to check."
+    else:
+        compliance_value, compliance_color = "Not Checked", "#94A3B8"
+        compliance_caption = "Compliance screening API key not configured."
+
+    st.markdown(
+        '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">'
+        + kpi_card_html(
+            "Supplier Risk Rating",
+            f"{supplier_score} <span style='font-size:15px;'>({get_risk_label(supplier_score)})</span>",
+            None, get_risk_color(supplier_score),
         )
-        compliance_results = []
-        if compliance_targets:
-            with st.spinner("Checking US Consolidated Screening List..."):
-                compliance_results = [(name, get_cached_sanctions_status(name)) for name in compliance_targets]
-
-        flagged = [(name, r) for name, r in compliance_results if r["sanctioned"]]
-        any_checked = any(r["checked"] for _, r in compliance_results)
-
-        if flagged:
-            for name, r in flagged:
-                st.markdown(f"- ⚠️ **{name}** - potential match: {r['matched_name']} (verify manually)")
-        elif any_checked:
-            st.markdown(
-                "<span style='color:#2ECC71; font-weight:700;'>Clear</span> - no name match found "
-                "on the US Consolidated Screening List.",
-                unsafe_allow_html=True,
-            )
-        elif not compliance_targets:
-            st.caption("No company or named supplier to check.")
-        else:
-            st.caption("Not checked - compliance screening API key not configured.")
+        + kpi_card_html("Single Source Dependency", dependency_value, dependency_caption, dep_color)
+        + kpi_card_html("Supplier Compliance Status", compliance_value, compliance_caption, compliance_color)
+        + '</div>',
+        unsafe_allow_html=True,
+    )
 
     st.markdown("---")
     st.markdown("### Logistics Risk")
-    lr_col1, lr_col2 = st.columns(2)
 
     port_routes = [name for name in SHIPPING_STATUS if "Port" in name]
     avg_delay_days = sum(
@@ -852,121 +993,154 @@ with tab4:
     transportation_risk_index = logistics_result["score"]
     on_time_rate = get_on_time_delivery_estimate(transportation_risk_index)
 
-    with lr_col1:
-        st.markdown("**Shipment Delays**")
-        if avg_delay_days <= 2:
-            delay_label, delay_color = "Low", "#2ECC71"
-        elif avg_delay_days <= 5:
-            delay_label, delay_color = "Moderate", "#F39C12"
-        elif avg_delay_days <= 10:
-            delay_label, delay_color = "High", "#E67E22"
-        else:
-            delay_label, delay_color = "Critical", "#E74C3C"
-        st.markdown(
-            f"<span style='color:{delay_color}; font-weight:700; font-size:22px;'>{avg_delay_days:.1f} days</span> "
-            f"<span style='color:{delay_color}; font-weight:700;'>({delay_label})</span>",
-            unsafe_allow_html=True,
-        )
-        st.caption("Weighted average delay across tracked routes, by share of global trade volume.")
+    if avg_delay_days <= 2:
+        delay_label, delay_color = "Low", "#2ECC71"
+    elif avg_delay_days <= 5:
+        delay_label, delay_color = "Moderate", "#F39C12"
+    elif avg_delay_days <= 10:
+        delay_label, delay_color = "High", "#E67E22"
+    else:
+        delay_label, delay_color = "Critical", "#E74C3C"
 
-        st.markdown("**Transportation Risk Index**")
-        st.markdown(
-            f"<span style='color:{get_risk_color(transportation_risk_index)}; font-weight:700; font-size:22px;'>"
-            f"{transportation_risk_index}</span> <span style='color:{get_risk_color(transportation_risk_index)}; "
-            f"font-weight:700;'>({get_risk_label(transportation_risk_index)})</span>",
-            unsafe_allow_html=True,
+    st.markdown(
+        '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">'
+        + kpi_card_html(
+            "Shipment Delays",
+            f"{avg_delay_days:.1f} days <span style='font-size:15px;'>({delay_label})</span>",
+            "Weighted average delay across tracked routes, by share of global trade volume.",
+            delay_color,
         )
-        st.caption("Same overall score as the Logistics & Shipping risk category.")
-
-    with lr_col2:
-        st.markdown("**Port Congestion**")
-        if port_routes:
-            st.markdown(
-                f"<span style='color:{get_risk_color(port_congestion_score)}; font-weight:700; font-size:22px;'>"
-                f"{port_congestion_score:.1f}</span> <span style='color:{get_risk_color(port_congestion_score)}; "
-                f"font-weight:700;'>({get_risk_label(port_congestion_score)})</span>",
-                unsafe_allow_html=True,
-            )
-            st.caption(f"Average risk score across {', '.join(port_routes)}.")
-        else:
-            st.caption("No tracked port routes available.")
-
-        st.markdown("**On-Time Delivery Rate**")
-        st.markdown(
-            f"<span style='color:{get_risk_color(100 - on_time_rate)}; font-weight:700; font-size:22px;'>"
-            f"{on_time_rate:.1f}%</span>",
-            unsafe_allow_html=True,
+        + kpi_card_html(
+            "Port Congestion",
+            f"{port_congestion_score:.1f} <span style='font-size:15px;'>({get_risk_label(port_congestion_score)})</span>"
+            if port_routes else "N/A",
+            f"Average risk score across {', '.join(port_routes)}." if port_routes else "No tracked port routes available.",
+            get_risk_color(port_congestion_score) if port_routes else "#94A3B8",
         )
-        st.caption("Estimate derived from the Transportation Risk Index, not a carrier-reported statistic.")
+        + kpi_card_html(
+            "Transportation Risk Index",
+            f"{transportation_risk_index} <span style='font-size:15px;'>({get_risk_label(transportation_risk_index)})</span>",
+            "Same overall score as the Logistics & Shipping risk category.",
+            get_risk_color(transportation_risk_index),
+        )
+        + kpi_card_html(
+            "On-Time Delivery Rate",
+            f"{on_time_rate:.1f}%",
+            "Estimate derived from the Transportation Risk Index, not a carrier-reported statistic.",
+            get_risk_color(100 - on_time_rate),
+        )
+        + '</div>',
+        unsafe_allow_html=True,
+    )
 
     st.markdown("---")
     st.markdown("### Geographic & External Risk")
-    ger_col1, ger_col2 = st.columns(2)
 
     top_country_name = top_data["name"] if top_data else None
     pol_reg_score = round((result["sub_scores"]["geopolitical"] + result["sub_scores"]["regulatory"]) / 2, 1)
 
-    with ger_col1:
-        st.markdown("**Natural Disaster Alerts**")
-        if top_country_name:
-            with st.spinner(f"Checking disaster-related news for {top_country_name}..."):
-                disaster_alert = get_cached_disaster_alert(top_country_name)
-            disaster_label, disaster_color = get_alert_band(disaster_alert["adjustment"])
-            st.markdown(
-                f"<span style='color:{disaster_color}; font-weight:700; font-size:20px;'>{disaster_label}</span>",
-                unsafe_allow_html=True,
-            )
-            st.caption(
-                f"{top_country_name} (top sourcing country): {disaster_alert['recent_count']} recent mentions "
-                f"vs {disaster_alert['baseline_weekly_rate']}/week normal."
-            )
-        else:
-            disaster_alert = _EMPTY_ALERT
-            st.caption("No sourcing data available to check.")
-
-        st.markdown("**Political/Regulatory Risks**")
-        st.markdown(
-            f"<span style='color:{get_risk_color(pol_reg_score)}; font-weight:700; font-size:22px;'>"
-            f"{pol_reg_score}</span> <span style='color:{get_risk_color(pol_reg_score)}; font-weight:700;'>"
-            f"({get_risk_label(pol_reg_score)})</span>",
-            unsafe_allow_html=True,
+    if top_country_name:
+        with st.spinner(f"Checking disaster-related news for {top_country_name}..."):
+            disaster_alert = get_cached_disaster_alert(top_country_name)
+        disaster_label, disaster_color = get_alert_band(disaster_alert["adjustment"])
+        disaster_caption = (
+            f"{top_country_name} (top sourcing country): {disaster_alert['recent_count']} recent mentions "
+            f"vs {disaster_alert['baseline_weekly_rate']}/week normal."
         )
-        st.caption("Average of the Geopolitical and Regulatory & Trade risk scores.")
+    else:
+        disaster_alert = _EMPTY_ALERT
+        disaster_label, disaster_color = "N/A", "#94A3B8"
+        disaster_caption = "No sourcing data available to check."
 
-    with ger_col2:
-        st.markdown("**Weather Impact**")
-        if top_country_name:
-            with st.spinner(f"Checking weather-related news for {top_country_name}..."):
-                weather_alert = get_cached_weather_alert(top_country_name)
-            weather_label, weather_color = get_alert_band(weather_alert["adjustment"])
+    if top_country_name:
+        with st.spinner(f"Checking weather-related news for {top_country_name}..."):
+            weather_alert = get_cached_weather_alert(top_country_name)
+        weather_label, weather_color = get_alert_band(weather_alert["adjustment"])
+        weather_caption = (
+            f"{top_country_name} (top sourcing country): {weather_alert['recent_count']} recent mentions "
+            f"vs {weather_alert['baseline_weekly_rate']}/week normal."
+        )
+    else:
+        weather_alert = _EMPTY_ALERT
+        weather_label, weather_color = "N/A", "#94A3B8"
+        weather_caption = "No sourcing data available to check."
+
+    if top_country_name:
+        with st.spinner(f"Checking conflict-related news for {top_country_name}..."):
+            conflict_alert = get_cached_conflict_alert(top_country_name)
+        conflict_label, conflict_color = get_alert_band(conflict_alert["adjustment"])
+        conflict_caption = (
+            f"{top_country_name} (top sourcing country): {conflict_alert['recent_count']} recent mentions "
+            f"vs {conflict_alert['baseline_weekly_rate']}/week normal."
+        )
+    else:
+        conflict_alert = _EMPTY_ALERT
+        conflict_label, conflict_color = "N/A", "#94A3B8"
+        conflict_caption = "No sourcing data available to check."
+
+    st.markdown(
+        '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">'
+        + kpi_card_html("Natural Disaster Alerts", disaster_label, disaster_caption, disaster_color)
+        + kpi_card_html(
+            "Political/Regulatory Risks",
+            f"{pol_reg_score} <span style='font-size:15px;'>({get_risk_label(pol_reg_score)})</span>",
+            "Average of the Geopolitical and Regulatory & Trade risk scores.",
+            get_risk_color(pol_reg_score),
+        )
+        + kpi_card_html("Weather Impact", weather_label, weather_caption, weather_color)
+        + kpi_card_html("Regional Conflict Alerts", conflict_label, conflict_caption, conflict_color)
+        + '</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("---")
+    st.markdown("### Dashboard Visualization")
+
+    st.markdown("**Risk Indicators**")
+    rag_items = [("Overall", result["total"])] + [
+        (RISK_CATEGORY_LABELS[key], result["sub_scores"][key]) for key in RISK_CATEGORY_LABELS
+    ]
+    rag_cols = st.columns(len(rag_items))
+    for col, (label, score) in zip(rag_cols, rag_items):
+        rag_label, rag_color = get_rag_status(score)
+        with col:
             st.markdown(
-                f"<span style='color:{weather_color}; font-weight:700; font-size:20px;'>{weather_label}</span>",
+                f"<div style='text-align:center;'>"
+                f"<div style='display:inline-block; width:16px; height:16px; border-radius:50%; "
+                f"background:{rag_color}; margin-bottom:4px;'></div><br>"
+                f"<span style='font-size:12px; color:#475569;'>{label}</span><br>"
+                f"<span style='font-weight:700; color:{rag_color};'>{rag_label}</span>"
+                f"</div>",
                 unsafe_allow_html=True,
             )
-            st.caption(
-                f"{top_country_name} (top sourcing country): {weather_alert['recent_count']} recent mentions "
-                f"vs {weather_alert['baseline_weekly_rate']}/week normal."
-            )
-        else:
-            weather_alert = _EMPTY_ALERT
-            st.caption("No sourcing data available to check.")
 
-        st.markdown("**Regional Conflict Alerts**")
-        if top_country_name:
-            with st.spinner(f"Checking conflict-related news for {top_country_name}..."):
-                conflict_alert = get_cached_conflict_alert(top_country_name)
-            conflict_label, conflict_color = get_alert_band(conflict_alert["adjustment"])
-            st.markdown(
-                f"<span style='color:{conflict_color}; font-weight:700; font-size:20px;'>{conflict_label}</span>",
-                unsafe_allow_html=True,
-            )
-            st.caption(
-                f"{top_country_name} (top sourcing country): {conflict_alert['recent_count']} recent mentions "
-                f"vs {conflict_alert['baseline_weekly_rate']}/week normal."
-            )
-        else:
-            conflict_alert = _EMPTY_ALERT
-            st.caption("No sourcing data available to check.")
+    st.markdown("**Risk Heat Map**")
+    with st.spinner("Computing risk scores across all industries..."):
+        all_industry_scores = {ind: get_cached_risk_score(ind)["sub_scores"] for ind in INDUSTRIES}
+    st.plotly_chart(build_risk_heatmap(all_industry_scores), use_container_width=True)
+    st.caption("Risk score (0-100) for every industry across all 5 categories, independent of the selection above.")
+
+    st.markdown("**Trend Analysis**")
+    record_score_snapshot(industry, result["total"], result["sub_scores"])
+    score_history = get_score_history(industry)
+    st.plotly_chart(build_score_trend_chart(score_history), use_container_width=True)
+    if len(score_history) <= 1:
+        st.caption(f"Tracking starts today - check back over time to see {industry}'s risk score trend build up.")
+    else:
+        st.caption(f"{industry}'s overall risk score over the last {len(score_history)} recorded day(s).")
+
+    st.markdown("**Top 10 Risk Drivers**")
+    risk_drivers = [(label, result["sub_scores"][key], "Category") for key, label in RISK_CATEGORY_LABELS.items()]
+    risk_drivers += [
+        (name, data["combined"], "Commodity") for name, data in result["details"]["commodity"]["by_commodity"].items()
+    ]
+    risk_drivers += [
+        (name, data["final"], "Logistics Route") for name, data in result["details"]["logistics"]["by_route"].items()
+    ]
+    risk_drivers += [(data["name"], data["final"], "Sourcing Country") for data in by_country.values()]
+    risk_drivers.sort(key=lambda x: -x[1])
+    for i, (name, score, category) in enumerate(risk_drivers[:10], 1):
+        st.markdown(f"{i}. **{name}** *({category})*: {score} ({get_risk_label(score)})")
 
     st.markdown("---")
 
