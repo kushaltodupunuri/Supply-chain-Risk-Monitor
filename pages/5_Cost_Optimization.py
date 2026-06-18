@@ -2,7 +2,6 @@ import streamlit as st
 
 from src.ui_helpers import inject_shared_css, cards_grid, metric_card_html
 
-st.set_page_config(page_title="Cost Optimization - SupplyIQ", page_icon="💰", layout="wide")
 inject_shared_css()
 
 st.title("💰 Cost Optimization Engine")

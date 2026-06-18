@@ -6,7 +6,6 @@ from statsmodels.tsa.holtwinters import SimpleExpSmoothing, ExponentialSmoothing
 
 from src.ui_helpers import inject_shared_css, metric_card_html, cards_grid
 
-st.set_page_config(page_title="Demand Forecasting - SupplyIQ", page_icon="📈", layout="wide")
 inject_shared_css()
 
 st.title("📈 Demand Forecasting Engine")

@@ -5,7 +5,6 @@ import plotly.graph_objects as go
 
 from src.ui_helpers import inject_shared_css, cards_grid, metric_card_html
 
-st.set_page_config(page_title="Logistics & Route Optimizer - SupplyIQ", page_icon="🚚", layout="wide")
 inject_shared_css()
 
 st.title("🚚 Logistics & Route Optimizer")
