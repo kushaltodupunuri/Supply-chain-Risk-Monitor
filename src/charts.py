@@ -189,10 +189,16 @@ def build_risk_ranking_chart(industry_scores, industry_weights):
     fig.update_layout(
         barmode="stack",
         height=max(320, 38 * len(industries_sorted) + 80),
-        margin=dict(t=10, b=10, l=10, r=10),
+        # A fixed left margin clips long industry names (e.g. "Industrial Equipment
+        # & Machinery") in kaleido's static PNG export - the live in-browser chart
+        # auto-expands, but the static renderer needs automargin set explicitly.
+        margin=dict(t=10, b=10, l=10, r=10, autoexpand=True),
         font=dict(family="Inter, sans-serif", color="#1E293B"),
         xaxis=dict(title="Weighted Risk Contribution (sums to overall score)"),
-        yaxis=dict(categoryorder="array", categoryarray=list(reversed(industries_sorted))),
+        yaxis=dict(
+            categoryorder="array", categoryarray=list(reversed(industries_sorted)),
+            automargin=True,
+        ),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
         plot_bgcolor="#FFFFFF",
         paper_bgcolor="#FFFFFF",
@@ -221,13 +227,13 @@ def build_score_trend_chart(history):
     )
     fig.update_layout(
         height=260,
-        margin=dict(t=20, b=20, l=40, r=20),
+        margin=dict(t=20, b=20, l=40, r=40),
         yaxis=dict(range=[0, 100], title="Overall Risk Score"),
         # type="category" instead of the implicit date axis - with very few points
         # (especially just one, when tracking has just started) Plotly's date axis
         # auto-ticking falls back to absurd microsecond-precision labels since it
         # has no real interval to infer from.
-        xaxis=dict(type="category"),
+        xaxis=dict(type="category", automargin=True),
         font=dict(family="Inter, sans-serif", color="#1E293B"),
         plot_bgcolor="#FFFFFF",
         paper_bgcolor="#FFFFFF",

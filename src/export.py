@@ -7,10 +7,12 @@ from openpyxl.drawing.image import Image as XLImage
 from openpyxl.styles import Font
 from PIL import Image as PILImage
 
-from src.charts import build_commodity_chart, build_geo_choropleth
+from src.charts import build_commodity_chart, build_geo_choropleth, build_risk_ranking_chart, build_score_trend_chart
 
 CHART_PNG_DIMS = (800, 320)  # px, used for commodity line charts in exports
 MAP_PNG_DIMS = (800, 440)  # px, used for the sourcing choropleth in exports
+RANKING_PNG_DIMS = (900, 560)  # px, tall enough for all 11 industries' bars
+TREND_PNG_DIMS = (800, 280)  # px, used for the score trend line in exports
 
 
 def _fig_to_png(fig, width, height):
@@ -192,6 +194,7 @@ def generate_excel_report(
     single_source_dependency, compliance_results,
     shipment_delays, port_congestion, on_time_rate,
     top_country_name, disaster_alert, pol_reg_score, weather_alert, conflict_alert,
+    all_industry_scores, all_industry_weights, score_history,
 ):
     """Returns the .xlsx file as bytes, ready for st.download_button."""
     overview_df = pd.DataFrame([
@@ -252,6 +255,7 @@ def generate_excel_report(
     geo_external_df = pd.DataFrame(
         _geo_external_rows(top_country_name, disaster_alert, pol_reg_score, weather_alert, conflict_alert)
     )
+    dashboard_viz_df = pd.DataFrame([{"Section": "Risk Ranking and Trend Analysis charts are below"}])
 
     sheets = [
         ("Overview", overview_df),
@@ -259,6 +263,7 @@ def generate_excel_report(
         ("Supplier Risk", supplier_risk_df),
         ("Logistics Risk", logistics_risk_df),
         ("Geographic & External Risk", geo_external_df),
+        ("Dashboard Visualization", dashboard_viz_df),
         ("AI Summary", summary_df),
         ("Recommendations", recs_df),
         ("Commodity Prices", commodity_df),
@@ -326,6 +331,25 @@ def generate_excel_report(
             map_xl_image.width, map_xl_image.height = map_width_px // 2, map_height_px // 2
             sourcing_sheet.add_image(map_xl_image, f"A{len(sourcing_df) + 3}")
 
+        viz_sheet = writer.sheets["Dashboard Visualization"]
+        viz_row_cursor = len(dashboard_viz_df) + 3
+        ranking_width_px, ranking_height_px = RANKING_PNG_DIMS
+        ranking_png_bytes = _fig_to_png(
+            build_risk_ranking_chart(all_industry_scores, all_industry_weights), ranking_width_px, ranking_height_px
+        )
+        if ranking_png_bytes is not None:
+            ranking_xl_image = XLImage(PILImage.open(io.BytesIO(ranking_png_bytes)))
+            ranking_xl_image.width, ranking_xl_image.height = ranking_width_px // 2, ranking_height_px // 2
+            viz_sheet.add_image(ranking_xl_image, f"A{viz_row_cursor}")
+            viz_row_cursor += (ranking_height_px // 2) // 19 + 2
+
+        trend_width_px, trend_height_px = TREND_PNG_DIMS
+        trend_png_bytes = _fig_to_png(build_score_trend_chart(score_history), trend_width_px, trend_height_px)
+        if trend_png_bytes is not None:
+            trend_xl_image = XLImage(PILImage.open(io.BytesIO(trend_png_bytes)))
+            trend_xl_image.width, trend_xl_image.height = trend_width_px // 2, trend_height_px // 2
+            viz_sheet.add_image(trend_xl_image, f"A{viz_row_cursor}")
+
     return buffer.getvalue()
 
 
@@ -384,6 +408,7 @@ def generate_pdf_report(
     single_source_dependency, compliance_results,
     shipment_delays, port_congestion, on_time_rate,
     top_country_name, disaster_alert, pol_reg_score, weather_alert, conflict_alert,
+    all_industry_scores, all_industry_weights, score_history,
 ):
     """Returns the .pdf file as bytes, ready for st.download_button.
 
@@ -633,5 +658,30 @@ def generate_pdf_report(
         [[r["Country"], r["Code"], r["% of Sourcing"], r["Product"], r["Risk Score"]] for r in sourcing_rows],
         [0.25, 0.1, 0.13, 0.37, 0.15],
     )
+
+    pdf.ln(6)
+    pdf.set_text_color(30, 41, 59)
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.set_x(10)
+    pdf.cell(epw, 9, "Dashboard Visualization", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_x(10)
+    pdf.cell(epw, 8, "Risk Ranking", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+    ranking_width_px, ranking_height_px = RANKING_PNG_DIMS
+    ranking_png_bytes = _fig_to_png(
+        build_risk_ranking_chart(all_industry_scores, all_industry_weights), ranking_width_px, ranking_height_px
+    )
+    _place_image(pdf, epw, ranking_png_bytes, ranking_width_px, ranking_height_px)
+
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_x(10)
+    pdf.cell(epw, 8, "Trend Analysis", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+    trend_width_px, trend_height_px = TREND_PNG_DIMS
+    trend_png_bytes = _fig_to_png(build_score_trend_chart(score_history), trend_width_px, trend_height_px)
+    _place_image(pdf, epw, trend_png_bytes, trend_width_px, trend_height_px)
 
     return bytes(pdf.output())
