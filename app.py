@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 from src.models.risk_engine import calculate_risk_score, get_weights, get_risk_label
 from src.data.geopolitical import COUNTRY_NAMES, get_country_risk
 from src.data.commodity_prices import get_commodity_prices
-from src.data.shipping import SHIPPING_STATUS
+from src.data.shipping import SHIPPING_STATUS, ROUTE_WEIGHTS
 from src.models.logistics_risk import calculate_logistics_risk
 from src.models.geopolitical_risk import calculate_geopolitical_risk, wb_score_to_risk
 from src.ai.summary import (
@@ -238,6 +238,15 @@ def get_disruption_probability_band(logistics_score):
     elif logistics_score <= 80:
         return "High (40-70%)", "#E67E22"
     return "Critical (>70%)", "#E74C3C"
+
+
+def get_on_time_delivery_estimate(logistics_score):
+    """Derives an estimated on-time delivery rate from the logistics risk score -
+    there's no carrier/logistics-provider API behind this (no free one publishes
+    real on-time performance data), so this is explicitly an estimate, not a
+    measured statistic. Floored at 60% since even severe disruptions rarely push
+    real-world on-time rates to literal 0%."""
+    return max(60.0, round(100 - logistics_score * 0.4, 1))
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -789,6 +798,68 @@ with tab4:
             st.caption("Not checked - compliance screening API key not configured.")
 
     st.markdown("---")
+    st.markdown("### Logistics Risk")
+    lr_col1, lr_col2 = st.columns(2)
+
+    port_routes = [name for name in SHIPPING_STATUS if "Port" in name]
+    avg_delay_days = sum(
+        SHIPPING_STATUS[route]["delay_days"] * weight for route, weight in ROUTE_WEIGHTS.items()
+    )
+    port_congestion_score = (
+        sum(logistics_result["by_route"][route]["final"] for route in port_routes) / len(port_routes)
+        if port_routes else 0
+    )
+    transportation_risk_index = logistics_result["score"]
+    on_time_rate = get_on_time_delivery_estimate(transportation_risk_index)
+
+    with lr_col1:
+        st.markdown("**Shipment Delays**")
+        if avg_delay_days <= 2:
+            delay_label, delay_color = "Low", "#2ECC71"
+        elif avg_delay_days <= 5:
+            delay_label, delay_color = "Moderate", "#F39C12"
+        elif avg_delay_days <= 10:
+            delay_label, delay_color = "High", "#E67E22"
+        else:
+            delay_label, delay_color = "Critical", "#E74C3C"
+        st.markdown(
+            f"<span style='color:{delay_color}; font-weight:700; font-size:22px;'>{avg_delay_days:.1f} days</span> "
+            f"<span style='color:{delay_color}; font-weight:700;'>({delay_label})</span>",
+            unsafe_allow_html=True,
+        )
+        st.caption("Weighted average delay across tracked routes, by share of global trade volume.")
+
+        st.markdown("**Transportation Risk Index**")
+        st.markdown(
+            f"<span style='color:{get_risk_color(transportation_risk_index)}; font-weight:700; font-size:22px;'>"
+            f"{transportation_risk_index}</span> <span style='color:{get_risk_color(transportation_risk_index)}; "
+            f"font-weight:700;'>({get_risk_label(transportation_risk_index)})</span>",
+            unsafe_allow_html=True,
+        )
+        st.caption("Same overall score as the Logistics & Shipping risk category.")
+
+    with lr_col2:
+        st.markdown("**Port Congestion**")
+        if port_routes:
+            st.markdown(
+                f"<span style='color:{get_risk_color(port_congestion_score)}; font-weight:700; font-size:22px;'>"
+                f"{port_congestion_score:.1f}</span> <span style='color:{get_risk_color(port_congestion_score)}; "
+                f"font-weight:700;'>({get_risk_label(port_congestion_score)})</span>",
+                unsafe_allow_html=True,
+            )
+            st.caption(f"Average risk score across {', '.join(port_routes)}.")
+        else:
+            st.caption("No tracked port routes available.")
+
+        st.markdown("**On-Time Delivery Rate**")
+        st.markdown(
+            f"<span style='color:{get_risk_color(100 - on_time_rate)}; font-weight:700; font-size:22px;'>"
+            f"{on_time_rate:.1f}%</span>",
+            unsafe_allow_html=True,
+        )
+        st.caption("Estimate derived from the Transportation Risk Index, not a carrier-reported statistic.")
+
+    st.markdown("---")
 
     commodity_changes = {
         name: (history[-1]["value"] - history[0]["value"]) / history[0]["value"] * 100
@@ -848,6 +919,7 @@ with tab4:
                 commodity_data, SHIPPING_STATUS, logistics_result, by_country,
                 critical_alerts, high_risk_suppliers, (disruption_label, disruption_color),
                 (dep_label, top_pct, top_data["name"] if top_data else None), compliance_results,
+                (avg_delay_days, delay_label), (port_congestion_score, port_routes), on_time_rate,
             ),
             file_name=f"supply_chain_risk_{industry.lower().replace(' ', '_')}.pdf",
             mime="application/pdf",
@@ -861,6 +933,7 @@ with tab4:
                 commodity_data, SHIPPING_STATUS, logistics_result, by_country,
                 critical_alerts, high_risk_suppliers, (disruption_label, disruption_color),
                 (dep_label, top_pct, top_data["name"] if top_data else None), compliance_results,
+                (avg_delay_days, delay_label), (port_congestion_score, port_routes), on_time_rate,
             ),
             file_name=f"supply_chain_risk_{industry.lower().replace(' ', '_')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

@@ -137,11 +137,33 @@ def _supplier_risk_rows(result, single_source_dependency, compliance_results):
     ]
 
 
+def _logistics_risk_rows(result, shipment_delays, port_congestion, on_time_rate):
+    avg_delay_days, delay_label = shipment_delays
+    port_score, port_routes = port_congestion
+    transportation_risk_index = result["sub_scores"]["logistics"]
+    port_text = (
+        f"{port_score:.1f} ({_risk_label(port_score)})" if port_routes else "No tracked port routes available"
+    )
+    return [
+        {"Metric": "Shipment Delays", "Value": f"{avg_delay_days:.1f} days average ({delay_label})"},
+        {"Metric": "Port Congestion", "Value": port_text},
+        {
+            "Metric": "Transportation Risk Index",
+            "Value": f"{transportation_risk_index} ({_risk_label(transportation_risk_index)})",
+        },
+        {
+            "Metric": "On-Time Delivery Rate",
+            "Value": f"{on_time_rate:.1f}% (estimate derived from Transportation Risk Index)",
+        },
+    ]
+
+
 def generate_excel_report(
     industry, company_name, time_horizon, result, ai_summary, recommendations,
     commodity_data, shipping_status, logistics_result, by_country,
     critical_alerts, high_risk_suppliers, disruption_band,
     single_source_dependency, compliance_results,
+    shipment_delays, port_congestion, on_time_rate,
 ):
     """Returns the .xlsx file as bytes, ready for st.download_button."""
     overview_df = pd.DataFrame([
@@ -196,11 +218,15 @@ def generate_excel_report(
     supplier_risk_df = pd.DataFrame(
         _supplier_risk_rows(result, single_source_dependency, compliance_results)
     )
+    logistics_risk_df = pd.DataFrame(
+        _logistics_risk_rows(result, shipment_delays, port_congestion, on_time_rate)
+    )
 
     sheets = [
         ("Overview", overview_df),
         ("Risk Scores", scores_df),
         ("Supplier Risk", supplier_risk_df),
+        ("Logistics Risk", logistics_risk_df),
         ("AI Summary", summary_df),
         ("Recommendations", recs_df),
         ("Commodity Prices", commodity_df),
@@ -324,6 +350,7 @@ def generate_pdf_report(
     commodity_data, shipping_status, logistics_result, by_country,
     critical_alerts, high_risk_suppliers, disruption_band,
     single_source_dependency, compliance_results,
+    shipment_delays, port_congestion, on_time_rate,
 ):
     """Returns the .pdf file as bytes, ready for st.download_button.
 
@@ -445,6 +472,24 @@ def generate_pdf_report(
     for metric_label, value_text in [
         (row["Metric"], row["Value"])
         for row in _supplier_risk_rows(result, single_source_dependency, compliance_results)
+    ]:
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_x(10)
+        pdf.multi_cell(epw, 6, _pdf_safe(metric_label), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 10)
+        pdf.set_x(10)
+        pdf.multi_cell(epw, 6, _pdf_safe(value_text), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(2)
+
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.set_x(10)
+    pdf.cell(epw, 9, "Logistics Risk", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+
+    for metric_label, value_text in [
+        (row["Metric"], row["Value"])
+        for row in _logistics_risk_rows(result, shipment_delays, port_congestion, on_time_rate)
     ]:
         pdf.set_font("Helvetica", "B", 11)
         pdf.set_x(10)
