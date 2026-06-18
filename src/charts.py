@@ -148,33 +148,54 @@ RISK_CATEGORY_LABELS = {
 }
 
 
-def build_risk_heatmap(industry_scores):
-    """industry_scores: {industry_name: {category_key: score}}. Renders all
-    industries against all 5 categories so risk can be compared across the whole
-    portfolio at once, instead of one industry at a time."""
-    industries = list(industry_scores.keys())
-    category_keys = list(RISK_CATEGORY_LABELS.keys())
-    z = [[industry_scores[industry][key] for key in category_keys] for industry in industries]
+RISK_CATEGORY_COLORS = {
+    "supplier": "#4F46E5",
+    "commodity": "#F59E0B",
+    "logistics": "#0EA5E9",
+    "geopolitical": "#10B981",
+    "regulatory": "#EF4444",
+}
 
-    fig = go.Figure(
-        data=go.Heatmap(
-            z=z,
-            x=[RISK_CATEGORY_LABELS[key] for key in category_keys],
-            y=industries,
-            zmin=0,
-            zmax=100,
-            colorscale=[[0, "#2ECC71"], [0.3, "#F39C12"], [0.6, "#E67E22"], [1.0, "#E74C3C"]],
-            colorbar_title="Risk Score",
-            text=z,
-            texttemplate="%{text:.0f}",
-            textfont=dict(size=11),
+
+def build_risk_ranking_chart(industry_scores, industry_weights):
+    """industry_scores: {industry_name: {category_key: score}}.
+    industry_weights: {industry_name: {category_key: weight}}.
+
+    A horizontal stacked bar, sorted by overall risk - bar length is the actual
+    overall weighted score, and each segment is that category's real contribution
+    (score x weight) to the total. Replaces an earlier heatmap version: color-coded
+    cells are hard to compare precisely by eye, while bar length is not - and this
+    version also directly shows *why* an industry is risky, not just *that* it is.
+    """
+    category_keys = list(RISK_CATEGORY_LABELS.keys())
+    totals = {
+        industry: sum(scores[key] * industry_weights[industry][key] for key in category_keys)
+        for industry, scores in industry_scores.items()
+    }
+    industries_sorted = sorted(totals, key=totals.get, reverse=True)
+
+    fig = go.Figure()
+    for key in category_keys:
+        fig.add_trace(
+            go.Bar(
+                name=RISK_CATEGORY_LABELS[key],
+                y=industries_sorted,
+                x=[industry_scores[ind][key] * industry_weights[ind][key] for ind in industries_sorted],
+                orientation="h",
+                marker_color=RISK_CATEGORY_COLORS[key],
+            )
         )
-    )
+
     fig.update_layout(
-        height=420,
-        margin=dict(t=20, b=20, l=10, r=10),
+        barmode="stack",
+        height=max(320, 38 * len(industries_sorted) + 80),
+        margin=dict(t=10, b=10, l=10, r=10),
         font=dict(family="Inter, sans-serif", color="#1E293B"),
-        xaxis=dict(side="top"),
+        xaxis=dict(title="Weighted Risk Contribution (sums to overall score)"),
+        yaxis=dict(categoryorder="array", categoryarray=list(reversed(industries_sorted))),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+        plot_bgcolor="#FFFFFF",
+        paper_bgcolor="#FFFFFF",
     )
     return fig
 

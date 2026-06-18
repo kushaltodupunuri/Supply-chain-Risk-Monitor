@@ -19,7 +19,7 @@ from src.ai.summary import (
 from src.export import generate_excel_report, generate_pdf_report
 from src.charts import (
     build_commodity_chart, build_geo_choropleth, ALPHA2_TO_ALPHA3, hex_to_rgba,
-    build_risk_heatmap, build_score_trend_chart, RISK_CATEGORY_LABELS,
+    build_risk_ranking_chart, build_score_trend_chart, RISK_CATEGORY_LABELS,
 )
 from src.data.sanctions import check_sanctions_status_safe
 from src.data.news_alerts import get_country_disaster_alert, get_country_weather_alert, get_country_conflict_alert
@@ -1114,11 +1114,12 @@ with tab4:
                 unsafe_allow_html=True,
             )
 
-    st.markdown("**Risk Heat Map**")
+    st.markdown("**Risk Ranking**")
     with st.spinner("Computing risk scores across all industries..."):
         all_industry_scores = {ind: get_cached_risk_score(ind)["sub_scores"] for ind in INDUSTRIES}
-    st.plotly_chart(build_risk_heatmap(all_industry_scores), use_container_width=True)
-    st.caption("Risk score (0-100) for every industry across all 5 categories, independent of the selection above.")
+        all_industry_weights = {ind: get_weights(ind) for ind in INDUSTRIES}
+    st.plotly_chart(build_risk_ranking_chart(all_industry_scores, all_industry_weights), use_container_width=True)
+    st.caption("All 11 industries ranked by overall risk score, broken down by each category's actual contribution.")
 
     st.markdown("**Trend Analysis**")
     record_score_snapshot(industry, result["total"], result["sub_scores"])
