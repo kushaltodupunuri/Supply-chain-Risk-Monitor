@@ -439,38 +439,41 @@ with st.sidebar:
 
     st.markdown("---")
 
-    company_name = st.selectbox(
-        "Company Name",
-        options=KNOWN_COMPANIES,
-        index=None,
-        placeholder="e.g., Apple, Toyota, Pfizer",
-        help="Pick a suggestion or type any company - its industry is detected automatically",
-        accept_new_options=True,
-    )
-    company_name = company_name or ""
+    with st.container(border=True):
+        st.markdown("**Risk Time Horizon**")
 
-    # A company name determines its own industry automatically - typing "Apple" works
-    # correctly no matter what the Industry dropdown is set to, instead of requiring the
-    # user to also manually pick the matching industry (error-prone: e.g. picking
-    # "Automotive" while typing "Apple" would silently score Apple as a car company).
-    # This MUST run before the selectbox below is instantiated - Streamlit only allows
-    # setting a keyed widget's session_state value before that widget is created, not after.
-    detected_industry = None
-    if company_name:
-        with st.spinner(f"Identifying {company_name}'s industry..."):
-            detected_industry = get_cached_company_industry(company_name)
-        if detected_industry and st.session_state.get("industry_select") != detected_industry:
-            st.session_state["industry_select"] = detected_industry
+        company_name = st.selectbox(
+            "Company Name",
+            options=KNOWN_COMPANIES,
+            index=None,
+            placeholder="e.g., Apple, Toyota, Pfizer",
+            help="Pick a suggestion or type any company - its industry is detected automatically",
+            accept_new_options=True,
+        )
+        company_name = company_name or ""
 
-    industry = st.selectbox("Select Industry *", options=INDUSTRIES, index=0, key="industry_select")
+        # A company name determines its own industry automatically - typing "Apple" works
+        # correctly no matter what the Industry dropdown is set to, instead of requiring the
+        # user to also manually pick the matching industry (error-prone: e.g. picking
+        # "Automotive" while typing "Apple" would silently score Apple as a car company).
+        # This MUST run before the selectbox below is instantiated - Streamlit only allows
+        # setting a keyed widget's session_state value before that widget is created, not after.
+        detected_industry = None
+        if company_name:
+            with st.spinner(f"Identifying {company_name}'s industry..."):
+                detected_industry = get_cached_company_industry(company_name)
+            if detected_industry and st.session_state.get("industry_select") != detected_industry:
+                st.session_state["industry_select"] = detected_industry
 
-    time_horizon = st.segmented_control(
-        "Risk Time Horizon *",
-        options=["30 days", "90 days", "180 days"],
-        format_func=lambda v: v.replace(" days", "d"),
-        default="90 days",
-        required=True,
-    )
+        industry = st.selectbox("Select Industry *", options=INDUSTRIES, index=0, key="industry_select")
+
+        time_horizon = st.segmented_control(
+            "Time Range *",
+            options=["30 days", "90 days", "180 days"],
+            format_func=lambda v: v.replace(" days", "d"),
+            default="90 days",
+            required=True,
+        )
 
     st.markdown("---")
     st.caption("Data sources: FRED, Alpha Vantage, World Bank, NewsAPI")
