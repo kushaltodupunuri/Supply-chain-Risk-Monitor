@@ -41,6 +41,18 @@ REGULATORY_KEYWORDS = [
     "customs", "trade restriction", "trade deal", "WTO dispute",
 ]
 
+NATURAL_DISASTER_KEYWORDS = [
+    "earthquake", "flood", "hurricane", "wildfire", "typhoon", "tsunami", "volcanic eruption",
+]
+
+WEATHER_KEYWORDS = [
+    "drought", "storm", "extreme weather", "heatwave", "monsoon", "flooding",
+]
+
+CONFLICT_KEYWORDS = [
+    "war", "military strike", "insurgency", "civil unrest", "coup", "armed conflict",
+]
+
 SHIPPING_ROUTE_QUERIES = {
     "Red Sea / Suez Canal": '"Red Sea" OR "Suez Canal"',
     "Panama Canal": '"Panama Canal"',
@@ -181,6 +193,21 @@ def get_route_alert(route_name, recent_days=7, baseline_days=30):
         raise ValueError(f"Unknown route: {route_name}")
     subject_expr = f'({SHIPPING_ROUTE_QUERIES[route_name]})'
     return get_relative_alert(subject_expr, route_name, RISK_KEYWORDS, recent_days, baseline_days)
+
+
+def get_country_disaster_alert(country_name, recent_days=7, baseline_days=30):
+    subject_expr = f'"{country_name}"'
+    return get_relative_alert(subject_expr, f"{country_name}_disaster", NATURAL_DISASTER_KEYWORDS, recent_days, baseline_days)
+
+
+def get_country_weather_alert(country_name, recent_days=7, baseline_days=30):
+    subject_expr = f'"{country_name}"'
+    return get_relative_alert(subject_expr, f"{country_name}_weather", WEATHER_KEYWORDS, recent_days, baseline_days)
+
+
+def get_country_conflict_alert(country_name, recent_days=7, baseline_days=30):
+    subject_expr = f'"{country_name}"'
+    return get_relative_alert(subject_expr, f"{country_name}_conflict", CONFLICT_KEYWORDS, recent_days, baseline_days)
 
 
 def get_industry_alert(industry, keywords, cache_suffix, recent_days=7, baseline_days=30):

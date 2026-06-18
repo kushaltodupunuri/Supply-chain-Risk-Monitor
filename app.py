@@ -19,6 +19,7 @@ from src.ai.summary import (
 from src.export import generate_excel_report, generate_pdf_report
 from src.charts import build_commodity_chart, build_geo_choropleth, ALPHA2_TO_ALPHA3, hex_to_rgba
 from src.data.sanctions import check_sanctions_status_safe
+from src.data.news_alerts import get_country_disaster_alert, get_country_weather_alert, get_country_conflict_alert
 
 st.set_page_config(
     page_title="Supply Chain Risk Monitor",
@@ -249,6 +250,18 @@ def get_on_time_delivery_estimate(logistics_score):
     return max(60.0, round(100 - logistics_score * 0.4, 1))
 
 
+def get_alert_band(adjustment):
+    """Converts a news-spike adjustment (0-20, see news_alerts.ratio_to_adjustment)
+    into a qualitative band for display."""
+    if adjustment >= 12:
+        return "High", "#E74C3C"
+    elif adjustment >= 6:
+        return "Elevated", "#F39C12"
+    elif adjustment > 0:
+        return "Watch", "#F0AD4E"
+    return "Normal", "#2ECC71"
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_cached_risk_score(industry):
     return calculate_risk_score(industry)
@@ -272,6 +285,33 @@ def get_cached_known_suppliers(company_name, industry):
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_cached_sanctions_status(entity_name):
     return check_sanctions_status_safe(entity_name)
+
+
+_EMPTY_ALERT = {"recent_count": 0, "baseline_weekly_rate": 0, "ratio": 0, "adjustment": 0, "sample_headlines": []}
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cached_disaster_alert(country_name):
+    try:
+        return get_country_disaster_alert(country_name)
+    except Exception:
+        return _EMPTY_ALERT  # NewsAPI hiccup/rate limit shouldn't break the whole page
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cached_weather_alert(country_name):
+    try:
+        return get_country_weather_alert(country_name)
+    except Exception:
+        return _EMPTY_ALERT
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cached_conflict_alert(country_name):
+    try:
+        return get_country_conflict_alert(country_name)
+    except Exception:
+        return _EMPTY_ALERT
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -860,6 +900,75 @@ with tab4:
         st.caption("Estimate derived from the Transportation Risk Index, not a carrier-reported statistic.")
 
     st.markdown("---")
+    st.markdown("### Geographic & External Risk")
+    ger_col1, ger_col2 = st.columns(2)
+
+    top_country_name = top_data["name"] if top_data else None
+    pol_reg_score = round((result["sub_scores"]["geopolitical"] + result["sub_scores"]["regulatory"]) / 2, 1)
+
+    with ger_col1:
+        st.markdown("**Natural Disaster Alerts**")
+        if top_country_name:
+            with st.spinner(f"Checking disaster-related news for {top_country_name}..."):
+                disaster_alert = get_cached_disaster_alert(top_country_name)
+            disaster_label, disaster_color = get_alert_band(disaster_alert["adjustment"])
+            st.markdown(
+                f"<span style='color:{disaster_color}; font-weight:700; font-size:20px;'>{disaster_label}</span>",
+                unsafe_allow_html=True,
+            )
+            st.caption(
+                f"{top_country_name} (top sourcing country): {disaster_alert['recent_count']} recent mentions "
+                f"vs {disaster_alert['baseline_weekly_rate']}/week normal."
+            )
+        else:
+            disaster_alert = _EMPTY_ALERT
+            st.caption("No sourcing data available to check.")
+
+        st.markdown("**Political/Regulatory Risks**")
+        st.markdown(
+            f"<span style='color:{get_risk_color(pol_reg_score)}; font-weight:700; font-size:22px;'>"
+            f"{pol_reg_score}</span> <span style='color:{get_risk_color(pol_reg_score)}; font-weight:700;'>"
+            f"({get_risk_label(pol_reg_score)})</span>",
+            unsafe_allow_html=True,
+        )
+        st.caption("Average of the Geopolitical and Regulatory & Trade risk scores.")
+
+    with ger_col2:
+        st.markdown("**Weather Impact**")
+        if top_country_name:
+            with st.spinner(f"Checking weather-related news for {top_country_name}..."):
+                weather_alert = get_cached_weather_alert(top_country_name)
+            weather_label, weather_color = get_alert_band(weather_alert["adjustment"])
+            st.markdown(
+                f"<span style='color:{weather_color}; font-weight:700; font-size:20px;'>{weather_label}</span>",
+                unsafe_allow_html=True,
+            )
+            st.caption(
+                f"{top_country_name} (top sourcing country): {weather_alert['recent_count']} recent mentions "
+                f"vs {weather_alert['baseline_weekly_rate']}/week normal."
+            )
+        else:
+            weather_alert = _EMPTY_ALERT
+            st.caption("No sourcing data available to check.")
+
+        st.markdown("**Regional Conflict Alerts**")
+        if top_country_name:
+            with st.spinner(f"Checking conflict-related news for {top_country_name}..."):
+                conflict_alert = get_cached_conflict_alert(top_country_name)
+            conflict_label, conflict_color = get_alert_band(conflict_alert["adjustment"])
+            st.markdown(
+                f"<span style='color:{conflict_color}; font-weight:700; font-size:20px;'>{conflict_label}</span>",
+                unsafe_allow_html=True,
+            )
+            st.caption(
+                f"{top_country_name} (top sourcing country): {conflict_alert['recent_count']} recent mentions "
+                f"vs {conflict_alert['baseline_weekly_rate']}/week normal."
+            )
+        else:
+            conflict_alert = _EMPTY_ALERT
+            st.caption("No sourcing data available to check.")
+
+    st.markdown("---")
 
     commodity_changes = {
         name: (history[-1]["value"] - history[0]["value"]) / history[0]["value"] * 100
@@ -920,6 +1029,7 @@ with tab4:
                 critical_alerts, high_risk_suppliers, (disruption_label, disruption_color),
                 (dep_label, top_pct, top_data["name"] if top_data else None), compliance_results,
                 (avg_delay_days, delay_label), (port_congestion_score, port_routes), on_time_rate,
+                top_country_name, disaster_alert, pol_reg_score, weather_alert, conflict_alert,
             ),
             file_name=f"supply_chain_risk_{industry.lower().replace(' ', '_')}.pdf",
             mime="application/pdf",
@@ -934,6 +1044,7 @@ with tab4:
                 critical_alerts, high_risk_suppliers, (disruption_label, disruption_color),
                 (dep_label, top_pct, top_data["name"] if top_data else None), compliance_results,
                 (avg_delay_days, delay_label), (port_congestion_score, port_routes), on_time_rate,
+                top_country_name, disaster_alert, pol_reg_score, weather_alert, conflict_alert,
             ),
             file_name=f"supply_chain_risk_{industry.lower().replace(' ', '_')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

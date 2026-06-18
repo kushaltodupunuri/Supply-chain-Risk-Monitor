@@ -158,12 +158,40 @@ def _logistics_risk_rows(result, shipment_delays, port_congestion, on_time_rate)
     ]
 
 
+def _alert_band_text(alert_name, country_name, alert):
+    if not country_name:
+        return f"{alert_name}: No sourcing data available to check."
+    adjustment = alert["adjustment"]
+    if adjustment >= 12:
+        band = "High"
+    elif adjustment >= 6:
+        band = "Elevated"
+    elif adjustment > 0:
+        band = "Watch"
+    else:
+        band = "Normal"
+    return (
+        f"{band} - {country_name} (top sourcing country): {alert['recent_count']} recent mentions "
+        f"vs {alert['baseline_weekly_rate']}/week normal."
+    )
+
+
+def _geo_external_rows(top_country_name, disaster_alert, pol_reg_score, weather_alert, conflict_alert):
+    return [
+        {"Metric": "Natural Disaster Alerts", "Value": _alert_band_text("Natural Disaster Alerts", top_country_name, disaster_alert)},
+        {"Metric": "Political/Regulatory Risks", "Value": f"{pol_reg_score} ({_risk_label(pol_reg_score)})"},
+        {"Metric": "Weather Impact", "Value": _alert_band_text("Weather Impact", top_country_name, weather_alert)},
+        {"Metric": "Regional Conflict Alerts", "Value": _alert_band_text("Regional Conflict Alerts", top_country_name, conflict_alert)},
+    ]
+
+
 def generate_excel_report(
     industry, company_name, time_horizon, result, ai_summary, recommendations,
     commodity_data, shipping_status, logistics_result, by_country,
     critical_alerts, high_risk_suppliers, disruption_band,
     single_source_dependency, compliance_results,
     shipment_delays, port_congestion, on_time_rate,
+    top_country_name, disaster_alert, pol_reg_score, weather_alert, conflict_alert,
 ):
     """Returns the .xlsx file as bytes, ready for st.download_button."""
     overview_df = pd.DataFrame([
@@ -221,12 +249,16 @@ def generate_excel_report(
     logistics_risk_df = pd.DataFrame(
         _logistics_risk_rows(result, shipment_delays, port_congestion, on_time_rate)
     )
+    geo_external_df = pd.DataFrame(
+        _geo_external_rows(top_country_name, disaster_alert, pol_reg_score, weather_alert, conflict_alert)
+    )
 
     sheets = [
         ("Overview", overview_df),
         ("Risk Scores", scores_df),
         ("Supplier Risk", supplier_risk_df),
         ("Logistics Risk", logistics_risk_df),
+        ("Geographic & External Risk", geo_external_df),
         ("AI Summary", summary_df),
         ("Recommendations", recs_df),
         ("Commodity Prices", commodity_df),
@@ -351,6 +383,7 @@ def generate_pdf_report(
     critical_alerts, high_risk_suppliers, disruption_band,
     single_source_dependency, compliance_results,
     shipment_delays, port_congestion, on_time_rate,
+    top_country_name, disaster_alert, pol_reg_score, weather_alert, conflict_alert,
 ):
     """Returns the .pdf file as bytes, ready for st.download_button.
 
@@ -490,6 +523,24 @@ def generate_pdf_report(
     for metric_label, value_text in [
         (row["Metric"], row["Value"])
         for row in _logistics_risk_rows(result, shipment_delays, port_congestion, on_time_rate)
+    ]:
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_x(10)
+        pdf.multi_cell(epw, 6, _pdf_safe(metric_label), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 10)
+        pdf.set_x(10)
+        pdf.multi_cell(epw, 6, _pdf_safe(value_text), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(2)
+
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.set_x(10)
+    pdf.cell(epw, 9, "Geographic & External Risk", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+
+    for metric_label, value_text in [
+        (row["Metric"], row["Value"])
+        for row in _geo_external_rows(top_country_name, disaster_alert, pol_reg_score, weather_alert, conflict_alert)
     ]:
         pdf.set_font("Helvetica", "B", 11)
         pdf.set_x(10)
