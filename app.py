@@ -291,14 +291,6 @@ def get_alert_band(adjustment):
     return "Normal", "#2ECC71"
 
 
-def get_rag_status(score):
-    """Collapses the usual 4-band Low/Moderate/High/Critical scale into a classic
-    3-color Red/Amber/Green status for an at-a-glance executive summary row."""
-    if score <= 30:
-        return "Green", "#2ECC71"
-    elif score <= 60:
-        return "Amber", "#F39C12"
-    return "Red", "#E74C3C"
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -1096,24 +1088,6 @@ with tab4:
     st.markdown("---")
     st.markdown("### Dashboard Visualization")
 
-    st.markdown("**Risk Indicators**")
-    rag_items = [("Overall", result["total"])] + [
-        (RISK_CATEGORY_LABELS[key], result["sub_scores"][key]) for key in RISK_CATEGORY_LABELS
-    ]
-    rag_cols = st.columns(len(rag_items))
-    for col, (label, score) in zip(rag_cols, rag_items):
-        rag_label, rag_color = get_rag_status(score)
-        with col:
-            st.markdown(
-                f"<div style='text-align:center;'>"
-                f"<div style='display:inline-block; width:16px; height:16px; border-radius:50%; "
-                f"background:{rag_color}; margin-bottom:4px;'></div><br>"
-                f"<span style='font-size:12px; color:#475569;'>{label}</span><br>"
-                f"<span style='font-weight:700; color:{rag_color};'>{rag_label}</span>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-
     st.markdown("**Risk Ranking**")
     with st.spinner("Computing risk scores across all industries..."):
         all_industry_scores = {ind: get_cached_risk_score(ind)["sub_scores"] for ind in INDUSTRIES}
@@ -1129,19 +1103,6 @@ with tab4:
         st.caption(f"Tracking starts today - check back over time to see {industry}'s risk score trend build up.")
     else:
         st.caption(f"{industry}'s overall risk score over the last {len(score_history)} recorded day(s).")
-
-    st.markdown("**Top 10 Risk Drivers**")
-    risk_drivers = [(label, result["sub_scores"][key], "Category") for key, label in RISK_CATEGORY_LABELS.items()]
-    risk_drivers += [
-        (name, data["combined"], "Commodity") for name, data in result["details"]["commodity"]["by_commodity"].items()
-    ]
-    risk_drivers += [
-        (name, data["final"], "Logistics Route") for name, data in result["details"]["logistics"]["by_route"].items()
-    ]
-    risk_drivers += [(data["name"], data["final"], "Sourcing Country") for data in by_country.values()]
-    risk_drivers.sort(key=lambda x: -x[1])
-    for i, (name, score, category) in enumerate(risk_drivers[:10], 1):
-        st.markdown(f"{i}. **{name}** *({category})*: {score} ({get_risk_label(score)})")
 
     st.markdown("---")
 
