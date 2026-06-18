@@ -256,20 +256,6 @@ def get_country_name(code):
     return COUNTRY_NAMES.get(code, code)
 
 
-def get_disruption_probability_band(logistics_score):
-    """Translates the existing 0-100 logistics/shipping risk score into a
-    probability-style band - this is a relabeling of a score we already
-    compute, not a separately modeled statistic, so the band is intentionally
-    wide rather than implying false precision."""
-    if logistics_score <= 30:
-        return "Low (<20%)", "#2ECC71"
-    elif logistics_score <= 60:
-        return "Moderate (20-40%)", "#F39C12"
-    elif logistics_score <= 80:
-        return "High (40-70%)", "#E67E22"
-    return "Critical (>70%)", "#E74C3C"
-
-
 def get_on_time_delivery_estimate(logistics_score):
     """Derives an estimated on-time delivery rate from the logistics risk score -
     there's no carrier/logistics-provider API behind this (no free one publishes
@@ -840,79 +826,13 @@ with tab3:
         )
 
 with tab4:
-    st.markdown("### Executive Summary")
-    exec_col1, exec_col2 = st.columns(2)
+    # Still computed (not displayed directly anymore) since Supplier Risk's
+    # compliance check below depends on it.
+    known_suppliers = []
+    if company_name and detected_industry:
+        with st.spinner(f"Looking up {company_name}'s suppliers..."):
+            known_suppliers = get_cached_known_suppliers(company_name, industry)
 
-    with exec_col1:
-        st.metric("Overall Risk Score", f"{result['total']} / 100", result["label"])
-
-        st.markdown("**Critical Risk Alerts**")
-        if critical_alerts:
-            for label, score in critical_alerts:
-                st.markdown(f"- {label}: **{score}** ({get_risk_label(score)})")
-        else:
-            st.caption("None - all categories within moderate range or better.")
-
-    with exec_col2:
-        st.markdown("**High-Risk Suppliers**")
-        known_suppliers = []
-        if company_name and detected_industry:
-            with st.spinner(f"Looking up {company_name}'s suppliers..."):
-                known_suppliers = get_cached_known_suppliers(company_name, industry)
-
-        high_risk_suppliers = []
-        suppliers_source_note = None
-        covered_country_codes = set()
-
-        for s in known_suppliers:
-            try:
-                wb_data = get_country_risk(s["country_code"])
-                supplier_risk = round(wb_score_to_risk(wb_data["value"]), 1)
-            except Exception:
-                continue  # skip countries World Bank has no data for, rather than guessing
-            covered_country_codes.add(s["country_code"])
-            if supplier_risk > 50:
-                high_risk_suppliers.append({
-                    "name": s["supplier"],
-                    "detail": f"{s['country']} - {s['product']}",
-                    "risk": supplier_risk,
-                    "label": get_risk_label(supplier_risk),
-                })
-
-        # Always cross-check against the country-level sourcing breakdown too, even when
-        # named suppliers were found - named suppliers reflect the model's specific
-        # knowledge, but shouldn't silently hide elevated risk that the broader sourcing
-        # breakdown (same data shown in the Geopolitical tab) already flags for a country
-        # with no AI-named supplier in it.
-        for code, data in sorted(by_country.items(), key=lambda x: -x[1]["final"]):
-            if data["final"] > 50 and code not in covered_country_codes:
-                high_risk_suppliers.append({
-                    "name": data["name"],
-                    "detail": data["product"],
-                    "risk": data["final"],
-                    "label": get_risk_label(data["final"]),
-                })
-
-        if not known_suppliers:
-            suppliers_source_note = "No specific named suppliers known - showing high-risk sourcing countries instead."
-
-        if high_risk_suppliers and suppliers_source_note:
-            st.caption(suppliers_source_note)
-        if high_risk_suppliers:
-            for item in high_risk_suppliers:
-                st.markdown(f"- **{item['name']}** ({item['detail']}): {item['risk']} ({item['label']})")
-        else:
-            st.caption("None - all sourcing within acceptable risk range.")
-
-        st.markdown("**Disruption Probability**")
-        disruption_label, disruption_color = get_disruption_probability_band(logistics_result["score"])
-        st.markdown(
-            f"<span style='color:{disruption_color}; font-weight:700;'>{disruption_label}</span>",
-            unsafe_allow_html=True,
-        )
-        st.caption(f"Derived from the current logistics & shipping risk score ({logistics_result['score']}).")
-
-    st.markdown("---")
     st.markdown("### Supplier Risk")
 
     supplier_score = result["sub_scores"]["supplier"]
@@ -1162,7 +1082,6 @@ with tab4:
             data=get_cached_pdf_report(
                 industry, company_name, time_horizon, result, ai_summary, recommendations,
                 commodity_data, SHIPPING_STATUS, logistics_result, by_country,
-                critical_alerts, high_risk_suppliers, (disruption_label, disruption_color),
                 (dep_label, top_pct, top_data["name"] if top_data else None), compliance_results,
                 (avg_delay_days, delay_label), (port_congestion_score, port_routes), on_time_rate,
                 top_country_name, disaster_alert, pol_reg_score, weather_alert, conflict_alert,
@@ -1178,7 +1097,6 @@ with tab4:
             data=get_cached_excel_report(
                 industry, company_name, time_horizon, result, ai_summary, recommendations,
                 commodity_data, SHIPPING_STATUS, logistics_result, by_country,
-                critical_alerts, high_risk_suppliers, (disruption_label, disruption_color),
                 (dep_label, top_pct, top_data["name"] if top_data else None), compliance_results,
                 (avg_delay_days, delay_label), (port_congestion_score, port_routes), on_time_rate,
                 top_country_name, disaster_alert, pol_reg_score, weather_alert, conflict_alert,

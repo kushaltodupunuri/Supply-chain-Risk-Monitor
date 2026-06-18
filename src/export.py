@@ -4,7 +4,6 @@ from datetime import datetime
 import pandas as pd
 from fpdf import FPDF
 from openpyxl.drawing.image import Image as XLImage
-from openpyxl.styles import Font
 from PIL import Image as PILImage
 
 from src.charts import build_commodity_chart, build_geo_choropleth, build_risk_ranking_chart, build_score_trend_chart
@@ -190,7 +189,6 @@ def _geo_external_rows(top_country_name, disaster_alert, pol_reg_score, weather_
 def generate_excel_report(
     industry, company_name, time_horizon, result, ai_summary, recommendations,
     commodity_data, shipping_status, logistics_result, by_country,
-    critical_alerts, high_risk_suppliers, disruption_band,
     single_source_dependency, compliance_results,
     shipment_delays, port_congestion, on_time_rate,
     top_country_name, disaster_alert, pol_reg_score, weather_alert, conflict_alert,
@@ -204,26 +202,6 @@ def generate_excel_report(
         {"Field": "Report Generated", "Value": datetime.now().strftime("%Y-%m-%d %H:%M")},
         {"Field": "Overall Risk Score", "Value": result["total"]},
         {"Field": "Overall Risk Level", "Value": result["label"]},
-    ])
-
-    alerts_df = pd.DataFrame(
-        [{"Category": label, "Score": score, "Risk Level": _risk_label(score)} for label, score in critical_alerts]
-        or [{"Category": "None", "Score": "", "Risk Level": ""}]
-    )
-
-    suppliers_df = pd.DataFrame(
-        [
-            {"Name": s["name"], "Detail": s["detail"], "Risk Score": s["risk"], "Risk Level": s["label"]}
-            for s in high_risk_suppliers
-        ]
-        or [{"Name": "None", "Detail": "", "Risk Score": "", "Risk Level": ""}]
-    )
-
-    disruption_df = pd.DataFrame([{"Value": disruption_band[0]}])
-
-    exec_score_df = pd.DataFrame([
-        {"Metric": "Overall Risk Score", "Value": f"{result['total']} / 100"},
-        {"Metric": "Overall Risk Level", "Value": result["label"]},
     ])
 
     scores_df = pd.DataFrame([
@@ -273,28 +251,6 @@ def generate_excel_report(
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        # Executive Summary stacks several small tables on one sheet (rather than
-        # giving each its own tab), with bold section titles written directly via
-        # openpyxl since pandas' to_excel has no header-styling option of its own.
-        exec_sheet_name = "Executive Summary"
-        row_cursor = 0
-        exec_score_df.to_excel(writer, sheet_name=exec_sheet_name, index=False, startrow=row_cursor)
-        row_cursor += len(exec_score_df) + 1 + 2
-        exec_ws = writer.sheets[exec_sheet_name]
-
-        for title, df in [
-            ("Critical Risk Alerts", alerts_df),
-            ("High-Risk Suppliers", suppliers_df),
-            ("Disruption Probability", disruption_df),
-        ]:
-            exec_ws.cell(row=row_cursor + 1, column=1, value=title).font = Font(bold=True)
-            row_cursor += 1
-            df.to_excel(writer, sheet_name=exec_sheet_name, index=False, startrow=row_cursor)
-            row_cursor += len(df) + 1 + 2
-
-        for col_letter, width in [("A", 30), ("B", 40), ("C", 16), ("D", 16)]:
-            exec_ws.column_dimensions[col_letter].width = width
-
         for sheet_name, df in sheets:
             df.to_excel(writer, sheet_name=sheet_name, index=False)
 
@@ -404,7 +360,6 @@ def _pdf_table(pdf, epw, headers, rows, col_weights):
 def generate_pdf_report(
     industry, company_name, time_horizon, result, ai_summary, recommendations,
     commodity_data, shipping_status, logistics_result, by_country,
-    critical_alerts, high_risk_suppliers, disruption_band,
     single_source_dependency, compliance_results,
     shipment_delays, port_congestion, on_time_rate,
     top_country_name, disaster_alert, pol_reg_score, weather_alert, conflict_alert,
@@ -436,12 +391,6 @@ def generate_pdf_report(
     pdf.cell(epw, 8, _pdf_safe(subtitle), new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
 
-    pdf.set_text_color(30, 41, 59)
-    pdf.set_font("Helvetica", "B", 15)
-    pdf.set_x(10)
-    pdf.cell(epw, 9, "Executive Summary", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(2)
-
     # Overall score box
     color = RISK_COLOR_RGB.get(result["label"], (100, 100, 100))
     pdf.set_fill_color(*color)
@@ -452,44 +401,6 @@ def generate_pdf_report(
     pdf.cell(epw - 5, 10, f"Overall Risk Score: {result['total']} / 100  -  {result['label']}", new_x="LMARGIN", new_y="NEXT")
     pdf.set_x(10)
     pdf.ln(15)
-
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.set_x(10)
-    pdf.cell(epw, 7, "Critical Risk Alerts", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 10)
-    if critical_alerts:
-        for label, score in critical_alerts:
-            pdf.set_x(10)
-            pdf.multi_cell(epw, 6, _pdf_safe(f"- {label}: {score} ({_risk_label(score)})"), new_x="LMARGIN", new_y="NEXT")
-    else:
-        pdf.set_x(10)
-        pdf.multi_cell(epw, 6, "None - all categories within moderate range or better.", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(2)
-
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.set_x(10)
-    pdf.cell(epw, 7, "High-Risk Suppliers", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 10)
-    if high_risk_suppliers:
-        for s in high_risk_suppliers:
-            pdf.set_x(10)
-            pdf.multi_cell(
-                epw, 6,
-                _pdf_safe(f"- {s['name']} ({s['detail']}): {s['risk']} ({s['label']})"),
-                new_x="LMARGIN", new_y="NEXT",
-            )
-    else:
-        pdf.set_x(10)
-        pdf.multi_cell(epw, 6, "None - all sourcing within acceptable risk range.", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(2)
-
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.set_x(10)
-    pdf.cell(epw, 7, "Disruption Probability", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 10)
-    pdf.set_x(10)
-    pdf.multi_cell(epw, 6, _pdf_safe(disruption_band[0]), new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(4)
 
     # Sub-score breakdown
     pdf.set_text_color(30, 41, 59)
