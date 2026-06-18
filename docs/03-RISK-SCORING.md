@@ -8,9 +8,10 @@ This explains the complete logic behind every score in the app, matching the act
 
 ## The Master Formula
 
-Every industry gets one overall risk score from 0 to 100. It's a weighted average of **five** sub-scores (`src/models/risk_engine.py`):
+Every industry gets one overall risk score from 0 to 100. It's a weighted average of **five** sub-scores (`src/models/risk_engine.py`). Weights can now vary **per industry** instead of one flat set across all 11:
 
 ```python
+# Fallback, used by any industry without its own breakdown below
 WEIGHTS = {
     "supplier": 0.25,
     "commodity": 0.20,
@@ -18,6 +19,20 @@ WEIGHTS = {
     "geopolitical": 0.20,
     "regulatory": 0.15,
 }
+
+WEIGHTS_BY_INDUSTRY = {
+    "Electronics": {
+        "supplier": 0.30, "geopolitical": 0.25, "commodity": 0.20,
+        "logistics": 0.15, "regulatory": 0.10,
+    },
+    # Other 10 industries fall back to WEIGHTS above until they get their own
+    # researched breakdown - Electronics' supplier-concentration weight was bumped
+    # from 25% to 30% (and geopolitical from 20% to 25%) specifically because
+    # semiconductor concentration matters more there than the industry-agnostic average.
+}
+
+def get_weights(industry):
+    return WEIGHTS_BY_INDUSTRY.get(industry, WEIGHTS)
 ```
 
 **Why these specific numbers?**
@@ -128,12 +143,34 @@ def calculate_volatility_score(prices, days=90):
     return max(0, min(100, score))
 ```
 
-**Step 3: Combine (trend weighted higher — a rising price is immediately actionable; volatility is a planning problem but less acute)**
+**Step 3: Calculate "Current State" — where today's price sits in its own recent range**
 
 ```python
-combined = trend * 0.6 + volatility * 0.4
+def calculate_current_state_score(prices, days=90):
+    windowed = _filter_to_window(prices, days)
+    values = [item["value"] for item in windowed]
+    latest, lo, hi = values[-1], min(values), max(values)
+    if hi == lo:
+        return 50
+    return max(0, min(100, (latest - lo) / (hi - lo) * 100))  # 100 = at/near the period high
+```
+
+This is what makes Current State distinct from trend: a commodity that spiked mid-window and has since retreated has a high trend score but a low Current State score — it already moved, but today isn't the exposed moment.
+
+**Step 4: Combine as Probability x Impact x Current State, via geometric mean**
+
+```python
+probability = calculate_volatility_score(history)      # how likely it keeps swinging
+impact = calculate_trend_score(history)                  # how much it's already moved
+current_state = calculate_current_state_score(history)   # where today sits in that range
+
+combined = (max(probability, 1) * max(impact, 1) * max(current_state, 1)) ** (1 / 3)
 overall_score = average(combined across all commodities for the industry)
 ```
+
+**Why geometric mean, not a raw product?** A raw product of three 0-100 scores treated as fractions collapses toward 0 even when all three are merely "moderate" — 0.5 x 0.5 x 0.5 = 0.125, which would make every commodity look artificially low-risk. Geometric mean keeps three "50" inputs combining to ~50 (matching intuition) while still pulling the score down hard if any one dimension is genuinely low — the same "all three must align for high risk" property a raw product has, without the scale collapse. Each factor is floored at 1 before combining, since a single factor hitting exactly 0 (e.g. today happens to be the exact period low) would otherwise force the whole geometric mean to 0, hiding real risk on the other two dimensions.
+
+**This replaced the original `trend * 0.6 + volatility * 0.4` weighted-sum formula** described in earlier versions of this doc — that version only used two signals and combined them additively, which doesn't reward (or penalize) all three dimensions aligning the way a true risk-multiplier model should.
 
 ---
 
@@ -157,10 +194,16 @@ ROUTE_WEIGHTS = {
 STATUS_BASE_SCORES = {"NORMAL": 0, "ELEVATED": 30, "DISRUPTED": 70, "SEVERE": 90}
 
 def route_disruption_to_score(route_data):
-    base = STATUS_BASE_SCORES[route_data["status"]]
-    delay_adjustment = min(20, route_data["delay_days"] * 1.5)
-    cost_adjustment = min(10, route_data["cost_premium_pct"] * 0.3)
-    return min(100, base + delay_adjustment + cost_adjustment)
+    """Probability x Impact x Current State, via geometric mean - same pattern as
+    Commodity. current_state is the status snapshot itself; probability is proxied
+    by typical delay days (a longer typical delay implies more probable ongoing
+    disruption); impact is proxied by the cost premium.
+    """
+    current_state = STATUS_BASE_SCORES[route_data["status"]]
+    probability = min(100, route_data["delay_days"] / 20 * 100)
+    impact = min(100, route_data["cost_premium_pct"] / 40 * 100)
+    combined = (max(current_state, 1) * max(probability, 1) * max(impact, 1)) ** (1 / 3)
+    return min(100, combined)
 
 def calculate_logistics_risk(use_news_alerts=True):
     total_score = 0
@@ -171,6 +214,8 @@ def calculate_logistics_risk(use_news_alerts=True):
         total_score += final_score * weight
     return total_score
 ```
+
+**This replaced the original additive formula** (`base + min(20, delay*1.5) + min(10, cost*0.3)`) for the same reason as Commodity above — a true Probability x Impact x Current State model should require all three dimensions to align for a high score, not just sum up independent bonuses. Each factor is floored at 1 before combining; without that floor, a NORMAL route (current_state=0) would always show exactly 0 even when it has a small real delay/cost premium (e.g. "US West Coast Ports" is NORMAL but still carries +1 day / +5% cost), losing signal the original additive model preserved.
 
 See "The Fast Alert Layer" section below for exactly how `alert_adjustment` is computed and why it took several iterations to get right.
 
@@ -290,13 +335,43 @@ MIN_RECENT_COUNT_FOR_ALERT = 3
 
 **File:** `src/ai/summary.py`
 
-When a company name is entered, three AI-driven (Groq/Ollama) functions can adjust what's displayed — all using the same core honesty rule: **if the model isn't genuinely confident it has real, specific knowledge of the company, it must say so and change nothing**, rather than fabricating plausible-looking specifics.
+When a company name is entered, four AI-driven (Groq/Ollama) functions can adjust what's displayed — all using the same core honesty rule: **if the model isn't genuinely confident it has real, specific knowledge of the company, it must say so and change nothing**, rather than fabricating plausible-looking specifics.
 
 1. **`detect_company_industry()`** — identifies which of the 11 industries the company belongs to, and the sidebar's industry dropdown auto-syncs to match (so typing "Apple" works correctly even if "Automotive" happens to be selected).
 2. **`generate_company_score_adjustment()`** — estimates a -15 to +15 nudge per sub-score (across all 5 current dimensions) based on real, named facts (e.g. Apple's Foxconn relationship), defaulting to 0 across the board if the company isn't recognized with high confidence.
 3. **`generate_company_sourcing_countries()`** — for recognized companies, lists their *actual* known sourcing countries (often more than the generic industry's 4-5), used to replace the generic Geopolitical Map breakdown with something company-specific.
+4. **`generate_known_suppliers()`** — names specific, real suppliers (e.g. TSMC, Foxconn) when genuinely known, feeding the High-Risk Suppliers list and the Supplier Compliance Status check (see "New Dashboard Sections" below).
 
 **This calibration took two real iterations.** The first prompt version confidently fabricated detailed, plausible-sounding sourcing breakdowns for entirely made-up company names ("Globex Manufacturing Solutions," "ZX Quark Dynamics Inc"). The fix was an explicit instruction to treat generic-sounding or unfamiliar names as NOT known by default, and to require the model name a *specific, real fact* before marking anything as known — verified by testing against both real companies and deliberately fictional/plausible-sounding fake ones.
+
+**A second real bug, found later:** none of these calls had a fixed temperature or random seed, so the same company could get a *different* score adjustment on a different device, after a cache expiry, or on a different LLM provider — a real non-determinism bug, not just normal AI variation, since this is a number meant to be a stable fact about a company, not creative writing. Fixed by pinning `temperature=0` and `seed=42` on all four functions above. The prose-only functions (`generate_risk_summary`, `generate_recommendations`' detail text) keep the default temperature, since natural variation in wording doesn't undermine trust in the number the way a wrong number would.
+
+---
+
+## New Dashboard Sections (Beyond the 5 Core Sub-Scores)
+
+Three sections present the same underlying real data from a different angle, rather than computing anything new from scratch:
+
+**Supplier Risk** (`app.py`, reuses `supplier_risk.py` + `sanctions.py`):
+- *Supplier Risk Rating* — the Supplier Concentration score, restated.
+- *Single Source Dependency* — High/Moderate/Low based on the top sourcing country's share of total sourcing (≥50% / ≥30% / below).
+- *Supplier Compliance Status* — a real check of named suppliers (or the typed company name, if no suppliers are known) against the US Treasury's Consolidated Screening List via trade.gov's API. Shows "Not checked" honestly if no API key is configured, rather than a false "Clear."
+
+**Logistics Risk** (`app.py`, reuses `logistics_risk.py` + `shipping.py`):
+- *Shipment Delays* — the weighted average `delay_days` across tracked routes.
+- *Port Congestion* — the average risk score across routes whose name contains "Port".
+- *Transportation Risk Index* — the Logistics & Shipping score, restated.
+- *On-Time Delivery Rate* — `100 - logistics_score * 0.4`, floored at 60%, explicitly labeled as an **estimate derived from** the Transportation Risk Index, since no free API publishes real carrier on-time performance data.
+
+**Geographic & External Risk** (`app.py`, reuses `news_alerts.py` + the 5 core scores):
+- *Natural Disaster Alerts*, *Weather Impact*, *Regional Conflict Alerts* — three new live NewsAPI keyword-spike checks (see "API #4: NewsAPI" in [docs/02-DATA-SOURCES.md](02-DATA-SOURCES.md) for the keyword sets) against the top sourcing country, banded Normal/Watch/Elevated/High by the same `ratio_to_adjustment()` thresholds used everywhere else.
+- *Political/Regulatory Risks* — the average of the Geopolitical and Regulatory & Trade scores.
+
+**Dashboard Visualization** (`src/charts.py`, `src/data/score_history.py`):
+- *Risk Ranking* — a horizontal stacked bar chart, all 11 industries sorted by overall score, each bar segmented by `score * weight` per category so the bar length sums exactly to that industry's real overall score. Replaced an earlier color-intensity heat map after feedback that color grids are hard to compare precisely by eye.
+- *Trend Analysis* — the current industry's overall score, snapshotted once per calendar day to a local JSON file (`record_score_snapshot`) and plotted over time. Starts with a single point and genuinely accumulates — there's no way to back-fill real history for a scoring formula that didn't exist before today.
+
+An "Executive Summary" section (Critical Risk Alerts, High-Risk Suppliers, Disruption Probability) was added, then **removed** after review — see [PLAN.md](../PLAN.md) for the full reasoning. The Overall Risk Score itself stayed visible everywhere it already was (the gauge chart, the PDF's colored score box, Excel's Overview sheet); only the three sub-lists were cut.
 
 ---
 
@@ -311,8 +386,15 @@ def calculate_risk_score(industry):
         "geopolitical": calculate_geopolitical_risk(industry)["score"],
         "regulatory": calculate_regulatory_risk(industry)["score"],
     }
-    total = sum(sub_scores[key] * WEIGHTS[key] for key in WEIGHTS)
-    return {"total": round(total, 1), "label": get_risk_label(total), "sub_scores": sub_scores}
+    weights = get_weights(industry)  # per-industry if defined, else the flat fallback
+    total = sum(sub_scores[key] * weights[key] for key in weights)
+    return {
+        "total": round(total, 1),
+        "label": get_risk_label(total),
+        "sub_scores": sub_scores,
+        "weights": weights,
+        "details": {...},  # the raw per-commodity/route/country breakdowns, used by drill-downs and exports
+    }
 ```
 
 ---

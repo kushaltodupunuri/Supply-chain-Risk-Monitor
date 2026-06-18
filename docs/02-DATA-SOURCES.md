@@ -1,6 +1,8 @@
 # Data Sources — Every API Explained
 
-This file explains every data source the app uses: what it is, why you need it, how to sign up, what the free tier gives you, and exactly what you call to get the data.
+This file explains every data source the live app actually uses: what it is, why it's there, how to sign up, what the free tier gives you, and where it's called in the code.
+
+**This doc was rewritten to match the live app.** The original plan also called for BLS (Bureau of Labor Statistics), UN Comtrade, and Anthropic's Claude API. None of those made it into the final build — BLS and UN Comtrade turned out to be redundant with what FRED and Alpha Vantage already provide, and Claude was swapped for Groq/Ollama (see below) specifically so the project has **no paid dependency anywhere in the stack**. The six sources below are what's actually wired up.
 
 ---
 
@@ -8,396 +10,207 @@ This file explains every data source the app uses: what it is, why you need it, 
 
 | Data Type | What It's For | Source |
 |-----------|--------------|--------|
-| Commodity prices (daily) | Commodity risk score + price charts | FRED API or Alpha Vantage |
-| Country risk indicators | Geopolitical risk score + map | World Bank API |
-| Trade flow data | Supplier concentration score | UN Comtrade API |
-| Producer price indices | Commodity volatility calculation | BLS API |
-| Shipping disruption status | Logistics risk score | Hand-coded + news flags |
+| Commodity prices | Commodity Price risk score + price charts | FRED API, Alpha Vantage |
+| Country risk indicators | Geopolitical risk score + sourcing map | World Bank API |
+| Breaking-event signals | The "spike" layer on top of Logistics, Geopolitical, Regulatory, and the new Geographic & External Risk alerts | NewsAPI |
+| AI summary, recommendations, company-specific facts | The Summary & Recommendations tab | Groq (deployed) / Ollama (local) |
+| Sanctions/compliance screening | Supplier Compliance Status | trade.gov Consolidated Screening List |
+| Shipping disruption status | Logistics & Shipping risk score | Hand-curated (`src/data/shipping.py`) + the NewsAPI spike layer |
 
 ---
 
 ## API #1: FRED (Federal Reserve Economic Data)
 
-**What it is:** The Federal Reserve Bank of St. Louis publishes an enormous free database of economic data. This includes commodity prices, inflation indices, producer price indices, and hundreds of other indicators. Updated daily.
+**File:** `src/data/commodity_prices.py`
 
-**Why you use it:** It's completely free with no hard rate limits. It's government data so it's reliable. It has commodity price history going back decades which you need for volatility calculations.
+**What it is:** The Federal Reserve Bank of St. Louis publishes a free database of economic data, including producer price indices going back decades.
+
+**Why you use it:** No rate limit, government-reliable, and it's the only free source for two commodities Alpha Vantage doesn't cover: Steel and Titanium.
 
 **How to sign up:**
-1. Go to fred.stlouisfed.org
-2. Click "My Account" → "Create Account"
-3. After creating account, go to: fred.stlouisfed.org/docs/api/api_key.html
-4. Click "Request API Key"
-5. You get a key immediately. It's free, no credit card needed.
+1. Go to fred.stlouisfed.org → "My Account" → "Create Account"
+2. Go to fred.stlouisfed.org/docs/api/api_key.html → "Request API Key"
+3. You get a key immediately, free, no credit card.
 
-**What it gives you (free tier):**
-- Unlimited API calls
-- Thousands of economic series
-- Daily price data with long history
+**Series actually used:**
 
-**Key data series you will use:**
+| Series ID | What It Is | Frequency |
+|-----------|-----------|-----------|
+| `WPUSI012011` | Steel producer price index | Monthly |
+| `WPU102505` | Titanium producer price index | Monthly |
 
-| Series ID | What It Is | Used For |
-|-----------|-----------|----------|
-| `WPUSI012011` | Steel producer price index | Automotive, Manufacturing risk |
-| `PCOPPUSDM` | Copper price (monthly) | Automotive, Electronics risk |
-| `PNGASEUUSDM` | Natural gas price | Energy-heavy industries |
-| `PWHEAMTUSDM` | Wheat price | Food & Beverage risk |
-| `PMAIZMTUSDM` | Corn price | Food & Beverage risk |
-| `PSOYBUSDM` | Soybean price | Food & Beverage risk |
-| `POILWTIUSDM` | Oil price (WTI crude) | Shipping cost driver |
-| `LITHIUM` | Lithium price | EV/Automotive battery risk |
-
-**How to call it in Python:**
+**How it's called:**
 
 ```python
-import requests
-
-FRED_API_KEY = "your_key_here"  # Store in .env file
-
-def get_fred_series(series_id, observation_start="2023-01-01"):
-    url = "https://api.stlouisfed.org/fred/series/observations"
-    params = {
-        "series_id": series_id,
-        "api_key": FRED_API_KEY,
-        "file_type": "json",
-        "observation_start": observation_start
-    }
-    response = requests.get(url, params=params)
-    data = response.json()
-    return data["observations"]  # List of {date, value} dicts
-```
-
-**Test call to verify it works:**
-```python
-# Run this to confirm your API key works
-steel_prices = get_fred_series("WPUSI012011")
-print(steel_prices[-5:])  # Last 5 data points
+url = "https://api.stlouisfed.org/fred/series/observations"
+params = {"series_id": series_id, "api_key": FRED_API_KEY, "file_type": "json", "observation_start": start_date}
+response = requests.get(url, params=params, timeout=15)
 ```
 
 ---
 
 ## API #2: Alpha Vantage
 
-**What it is:** A financial data API that covers commodity prices, currency exchange rates, and some economic indicators. Better for daily commodity data than FRED in some cases.
+**File:** `src/data/commodity_prices.py`
 
-**Why you use it:** FRED is monthly for many commodities. Alpha Vantage gives you daily prices, which is better for short-term trend calculations.
+**What it is:** A financial data API covering commodity prices and more.
+
+**Why you use it:** Covers the other 7 tracked commodities (Copper, Aluminum, Oil/WTI, Natural Gas, Wheat, Corn, Cotton) that FRED's free tier doesn't have as clean monthly/daily series.
 
 **How to sign up:**
-1. Go to alphavantage.co
-2. Click "Get Free API Key"
-3. Fill out the form — no credit card needed
-4. You get your API key immediately in your email
+1. Go to alphavantage.co → "Get Free API Key"
+2. No credit card needed — the key arrives immediately by email.
 
-**What it gives you (free tier):**
-- 25 API calls per day
-- Daily commodity prices
-- This is enough for development. In production you can cache results to stay under the limit.
+**Free tier limit:** 5 calls/minute, 25/day on some plans. The code enforces a 13-second gap between calls (`_ALPHA_MIN_GAP_SECONDS`) to stay under the per-minute limit, and caches every result to disk for 24 hours so a normal session makes very few live calls.
 
-**Key endpoints you will use:**
-
-```python
-# Copper (daily)
-url = f"https://www.alphavantage.co/query?function=COPPER&interval=daily&apikey={ALPHA_KEY}"
-
-# Aluminum (daily)
-url = f"https://www.alphavantage.co/query?function=ALUMINUM&interval=daily&apikey={ALPHA_KEY}"
-
-# Natural gas
-url = f"https://www.alphavantage.co/query?function=NATURAL_GAS&interval=daily&apikey={ALPHA_KEY}"
-
-# WTI Oil
-url = f"https://www.alphavantage.co/query?function=WTI&interval=daily&apikey={ALPHA_KEY}"
-
-# Wheat
-url = f"https://www.alphavantage.co/query?function=WHEAT&interval=daily&apikey={ALPHA_KEY}"
-```
-
-**How to call it in Python:**
-
-```python
-import requests
-
-ALPHA_KEY = "your_key_here"  # Store in .env file
-
-def get_commodity_daily(commodity_function):
-    url = "https://www.alphavantage.co/query"
-    params = {
-        "function": commodity_function,
-        "interval": "daily",
-        "apikey": ALPHA_KEY
-    }
-    response = requests.get(url, params=params)
-    data = response.json()
-    return data["data"]  # List of {date, value} dicts
-```
-
-**Important note about the free tier:** Alpha Vantage free tier allows 25 calls/day. Since you have multiple commodities to track, you will cache the results locally using Python's `functools.lru_cache` or just save them to a JSON file for the session. This is standard practice — even production apps cache API results.
+**Real data quirk to know about:** Oil and Natural Gas come back as true daily prices. Copper, Aluminum, Wheat, Corn, and Cotton are **monthly** on the free tier. Naively taking "the last 90 entries" would span 7+ years for the monthly ones instead of 90 days — `_filter_to_window()` filters by actual calendar date before any trend/volatility math runs, regardless of how many raw entries came back.
 
 ---
 
 ## API #3: World Bank
 
-**What it is:** The World Bank publishes hundreds of indicators for every country — political stability, governance quality, economic strength, infrastructure quality. This is what you use for your geopolitical risk scores.
+**File:** `src/data/geopolitical.py`
 
-**Why you use it:** It's completely free, no API key required, and it has a standardized "Political Stability and Absence of Violence" indicator that is perfect for your geopolitical risk score.
+**What it is:** Free, no API key, with a standardized "Political Stability and Absence of Violence" indicator per country — exactly what the Geopolitical score needs.
 
-**How to sign up:** You don't need to. Just call it directly.
-
-**Key indicators you will use:**
-
-| Indicator Code | What It Measures |
-|----------------|-----------------|
-| `GOV_WGI_PV.EST` | Political Stability and Absence of Violence (−2.5 to +2.5) |
-| `GOV_WGI_GE.EST` | Government Effectiveness |
-| `GOV_WGI_CC.EST` | Control of Corruption |
-| `GOV_WGI_RQ.EST` | Regulatory Quality |
-
-**Note:** The short codes (`PV.EST`, etc.) you may see referenced elsewhere belong to an archived World Bank data source and will return "indicator not found" errors. Always use the `GOV_WGI_` prefixed codes, which point to the live, current dataset (World Bank source ID 3).
-
-**How to call it in Python:**
+**Indicator actually used:** `GOV_WGI_PV.EST` (−2.5 worst to +2.5 best). **Real bug found and fixed:** the shorter code you might see referenced elsewhere (`PV.EST`) points to an archived data source and silently returns "indicator not found." The live, current code is the `GOV_WGI_`-prefixed one (World Bank source ID 3).
 
 ```python
-import requests
-
-def get_country_risk(country_code, indicator="PV.EST"):
-    # country_code examples: "CN" (China), "TW" (Taiwan), "IN" (India), "MX" (Mexico)
-    url = f"https://api.worldbank.org/v2/country/{country_code}/indicator/{indicator}"
-    params = {
-        "format": "json",
-        "mrv": 1  # Most recent value only
-    }
-    response = requests.get(url, params=params)
-    data = response.json()
-    # data[1] is the list of results
-    return data[1][0]["value"]  # Returns the score
+url = f"https://api.worldbank.org/v2/country/{country_code}/indicator/GOV_WGI_PV.EST"
+params = {"format": "json", "mrv": 5}  # looks back up to 5 years for the most recent non-null value
 ```
 
-**Countries that matter by industry:**
-
-| Industry | Key Countries to Track |
-|----------|----------------------|
-| Automotive | China (CN), Mexico (MX), Germany (DE), Japan (JP), South Korea (KR) |
-| Electronics | Taiwan (TW), China (CN), South Korea (KR), Malaysia (MY), Vietnam (VN) |
-| Pharma | China (CN), India (IN), Ireland (IE), Singapore (SG) |
-| Retail | China (CN), Bangladesh (BD), Vietnam (VN), India (IN) |
-| Food & Beverage | Brazil (BR), United States (US), Argentina (AR), Australia (AU), Ukraine (UA) |
+Cached 7 days, since World Bank only updates this annually.
 
 ---
 
-## API #4: BLS (Bureau of Labor Statistics)
+## API #4: NewsAPI
 
-**What it is:** The US government's Bureau of Labor Statistics publishes Producer Price Indices (PPI) — these measure price changes at the wholesale level before goods reach consumers. This is better than retail prices for supply chain risk because you're measuring what manufacturers pay.
+**File:** `src/data/news_alerts.py`
 
-**Why you use it:** PPI data is more relevant to supply chain than consumer prices. If steel PPI is up 20%, a car manufacturer's costs go up even before they sell a single car.
+**What it is:** A headline-search API used as the "fast alert layer" sitting on top of every slow-moving baseline (route status, World Bank scores, regulatory baselines) — it catches a breaking event between manual/annual updates.
+
+**How to sign up:** newsapi.org → free Developer plan, no credit card.
+
+**Free tier limit:** 100 requests/24h (50 every 12h). Every subject is cached 24h, and the comparison is a **ratio** (this week's mentions vs. the subject's own 30-day baseline rate), not a raw count — a naturally newsworthy country like China always has thousands of mentions, while a quiet one like Vietnam might have a handful; comparing each subject to its own baseline is what lets a genuine spike stand out for either.
+
+**Used by four different keyword sets**, all going through the same `get_relative_alert()` function:
+- `RISK_KEYWORDS` — Logistics & Geopolitical (tariff, sanctions, strike, conflict, war, blockade...)
+- `REGULATORY_KEYWORDS` — Regulatory & Trade (tariff, trade war, export control, import ban...)
+- `NATURAL_DISASTER_KEYWORDS` / `WEATHER_KEYWORDS` / `CONFLICT_KEYWORDS` — the Geographic & External Risk section's three alerts (earthquake/flood/hurricane..., drought/storm/heatwave..., war/coup/civil unrest...)
+
+**Real bugs found and fixed here** (worth knowing if you extend this file): headline-only search (`qInTitle`, not full-text `q`) to avoid false positives from unrelated body text; multi-word keywords must be quoted individually or NewsAPI splits them into separate OR'd words (`"export ban"` unquoted once matched bare "ban" in cricket headlines); a `MIN_RECENT_COUNT_FOR_ALERT` guardrail so a quiet subject's 1-article baseline jumping to 4 articles doesn't look like a 300% spike off pure sample noise.
+
+---
+
+## API #5: Groq (deployed) / Ollama (local)
+
+**Files:** `src/ai/summary.py`
+
+**What it is:** Two free LLM providers behind one shared `_call_llm()` function — **Groq's hosted API** (free tier, used once deployed to Streamlit Cloud) when `GROQ_API_KEY` is set, otherwise **a local Ollama model** (no key needed, runs entirely on your machine during development).
+
+**Why two providers instead of one:** Streamlit Cloud can't run Ollama (it needs a local model server), and requiring every contributor to get a paid API key just to run the app locally is unnecessary friction. This way the whole stack — including the AI layer — has zero paid dependencies.
+
+**How to sign up for Groq:** console.groq.com → free account → API Keys → create one. No credit card.
+
+**How to set up Ollama locally:** ollama.com → install → `ollama pull llama3.2` → it runs as a local background service; the code just calls `ollama.chat(model="llama3.2", ...)`.
+
+**What it's used for:**
+- The risk brief and recommendation detail text (prose, default sampling)
+- Company industry detection, score adjustment, sourcing-country list, and named-supplier list (all run with `temperature=0` and a fixed `seed` — see [docs/05-AI-SUMMARY.md](05-AI-SUMMARY.md) for why this matters and what bug it fixed)
+
+---
+
+## API #6: trade.gov Consolidated Screening List
+
+**File:** `src/data/sanctions.py`
+
+**What it is:** The US government's official, free API for screening a name against OFAC's Specially Designated Nationals list and several other restricted-party lists. Backs the Supplier Compliance Status metric.
 
 **How to sign up:**
-1. Go to bls.gov/developers
-2. Click "Register" — you get an API key
-3. Free tier allows 500 queries per day with a registered key
+1. developer.trade.gov → "Sign in" → "Sign up now" (new portal — an old trade.gov developer account won't carry over)
+2. Go to Products → "Data Services Platform APIs" → Subscribe (any subscription name)
+3. Your Profile page shows a Primary/Secondary key — either works as `TRADE_GOV_API_KEY`
 
-**How to call it in Python:**
+**Real bug found and fixed:** the *direct* OFAC SDN.CSV download (the older, simpler approach) is served from a host with a broken certificate chain — it loads fine in a browser (Windows tolerates the broken chain more leniently) but fails standard Python/Linux TLS verification, which would also fail on Streamlit Cloud. The trade.gov API is the modern, correctly-configured replacement.
 
-```python
-import requests
-import json
+**Real false positive found and fixed:** the first matching approach (whole-word substring match) flagged "Apple" as a match against "ORIENTAL APPLE COMPANY PTE LTD" — a real company name innocently containing the word "Apple." Fixed by requiring an **exact** name match (case/whitespace-insensitive) instead, trading recall for not flagging real companies incorrectly.
 
-BLS_API_KEY = "your_key_here"  # Store in .env file
-
-def get_bls_series(series_id, start_year, end_year):
-    url = "https://api.bls.gov/publicAPI/v2/timeseries/data/"
-    headers = {"Content-type": "application/json"}
-    data = json.dumps({
-        "seriesid": [series_id],
-        "startyear": str(start_year),
-        "endyear": str(end_year),
-        "registrationkey": BLS_API_KEY
-    })
-    response = requests.post(url, data=data, headers=headers)
-    return response.json()["Results"]["series"][0]["data"]
-```
-
-**Key series IDs:**
-
-| Series ID | What It Measures |
-|-----------|-----------------|
-| `WPU101` | Steel mill products PPI |
-| `WPU102` | Iron and steel scrap PPI |
-| `WPU102501` | Copper and copper products PPI |
-| `WPU0652` | Plastics products PPI |
-| `WPU061` | Pharmaceutical preparations PPI |
+If `TRADE_GOV_API_KEY` isn't set, Supplier Compliance Status honestly shows "Not checked" rather than a false "Clear."
 
 ---
 
-## API #5: Anthropic (Claude) — For AI Summary
+## Shipping Disruption Data — Hand-Curated by Design
 
-**What it is:** The Claude API by Anthropic generates the plain English risk summary and recommendations panel in your app. You send it the risk scores and data, and it writes a business-appropriate summary.
+**File:** `src/data/shipping.py`
 
-**Why you use it over OpenAI:** Claude is better at following precise formatting instructions, which you need so the summary is always 3-4 sentences. Also, free tier is available.
-
-**How to sign up:**
-1. Go to console.anthropic.com
-2. Create an account
-3. Go to "API Keys" and create a key
-4. Free tier: $5 in credits included when you sign up — enough for development
-
-**How to call it in Python:**
+No free API publishes a continuously-updated, structured "is this shipping route disrupted right now" feed. The app uses a hand-curated dict instead, updated every 1-2 weeks based on current shipping news — the same legitimate approach many professional risk dashboards use for qualitative data:
 
 ```python
-import anthropic
-
-ANTHROPIC_KEY = "your_key_here"  # Store in .env file
-
-client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
-
-def generate_risk_summary(industry, scores, commodity_data):
-    prompt = f"""
-You are a supply chain risk analyst. Write a 3-4 sentence plain English summary of 
-the current supply chain risk situation for the {industry} industry.
-
-Current risk scores (0-100 scale, higher = more risk):
-- Supplier Concentration Risk: {scores['supplier']}/100
-- Commodity Price Risk: {scores['commodity']}/100
-- Logistics & Shipping Risk: {scores['logistics']}/100
-- Geopolitical Risk: {scores['geopolitical']}/100
-- Overall Risk: {scores['total']}/100
-
-Key commodity movements: {commodity_data}
-
-Write as if briefing a supply chain executive. Be specific about the biggest risks.
-Do not mention the scores directly. Translate them into business language.
-"""
-    
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",  # Fast and cheap for summaries
-        max_tokens=200,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    
-    return message.content[0].text
-```
-
----
-
-## Shipping Disruption Data — The Special Case
-
-Unlike the other data sources, shipping disruption data doesn't have a single clean free API. Here's what you do instead:
-
-**Option A (Recommended): Curated static data with manual updates**
-
-You create a Python dict that you update manually every week or two. This is completely legitimate — many professional risk dashboards do exactly this for qualitative data.
-
-```python
-# src/data/shipping.py
-
 SHIPPING_STATUS = {
     "Red Sea / Suez Canal": {
-        "status": "DISRUPTED",  # or "NORMAL" or "ELEVATED"
+        "status": "DISRUPTED",
         "delay_days": 14,
         "cost_premium_pct": 40,
         "affected_trades": ["Asia-Europe", "Asia-Mediterranean"],
-        "summary": "Houthi attacks causing rerouting around Cape of Good Hope since Dec 2023"
+        "summary": "Houthi attacks causing rerouting around Cape of Good Hope since Dec 2023",
     },
-    "Panama Canal": {
-        "status": "ELEVATED",
-        "delay_days": 3,
-        "cost_premium_pct": 15,
-        "affected_trades": ["Asia-East Coast US", "East Coast-West Coast"],
-        "summary": "Drought reduced canal capacity; improved but not fully normal"
-    },
-    "US West Coast Ports": {
-        "status": "NORMAL",
-        "delay_days": 1,
-        "cost_premium_pct": 5,
-        "affected_trades": ["Trans-Pacific"],
-        "summary": "Operating normally after 2023 labor agreement"
-    },
-    "US East Coast Ports": {
-        "status": "NORMAL",
-        "delay_days": 0,
-        "cost_premium_pct": 0,
-        "affected_trades": ["Trans-Atlantic", "South America"],
-        "summary": "Operating normally"
-    }
+    # Panama Canal, US West/East Coast Ports, Strait of Malacca...
 }
 ```
 
-**Option B: Freightos Baltic Index (FBX)**
-freightos.com/freightos-baltic-index/ publishes container shipping rates as an index. You can scrape the public data or use their API.
-
-**Option C: Vessel Finder / Marine Traffic APIs**
-These have free tiers and give you real vessel position data, but they're complex and overkill for this project.
-
-**Recommendation: Start with Option A (static dict) and switch to Option B if you want to add live shipping cost data.**
+The NewsAPI spike layer (`get_route_alert`) sits on top of this, catching a sudden event the manual update hasn't caught up to yet.
 
 ---
 
 ## Setting Up Your .env File
 
-Create a file called `.env` in your project root. Never commit this file to GitHub.
-
 ```
 # .env — never commit this file
-FRED_API_KEY=your_fred_key_here
-ALPHA_VANTAGE_KEY=your_alpha_key_here
-BLS_API_KEY=your_bls_key_here
-ANTHROPIC_API_KEY=your_anthropic_key_here
+FRED_API_KEY=your_fred_key
+ALPHA_VANTAGE_KEY=your_alpha_vantage_key
+NEWS_API_KEY=your_newsapi_key
+GROQ_API_KEY=your_groq_key
+TRADE_GOV_API_KEY=your_trade_gov_key
 ```
 
-Load it in Python:
+`GROQ_API_KEY` and `TRADE_GOV_API_KEY` are optional — the app falls back to local Ollama and an honest "not checked" status respectively if they're missing.
+
+`src/config.py`'s `get_secret()` reads from Streamlit's `st.secrets` first (for the deployed app), falling back to this `.env` file (for local development) — the same function call works in both places:
 
 ```python
-# At the top of any file that needs API keys
-from dotenv import load_dotenv
-import os
-
-load_dotenv()  # Reads the .env file
-
-FRED_API_KEY = os.getenv("FRED_API_KEY")
-ALPHA_KEY = os.getenv("ALPHA_VANTAGE_KEY")
-BLS_KEY = os.getenv("BLS_API_KEY")
-ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
+def get_secret(key):
+    try:
+        import streamlit as st
+        if key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+    return os.getenv(key)
 ```
 
-Add `.env` to your `.gitignore` file:
-```
-# .gitignore
-.env
-__pycache__/
-*.pyc
-```
+`.gitignore` already excludes `.env` and the `cache/` directory (where the file-based caches below live).
 
 ---
 
 ## Caching Strategy
 
-Because Alpha Vantage has a 25 calls/day limit and API calls slow down your app, you cache results.
-
-Simple approach: cache to a local JSON file per session.
+Every external call (FRED, Alpha Vantage, World Bank, NewsAPI, and the daily score-history snapshot) caches its result to a local JSON file under `cache/`, keyed by subject and TTL — the same pattern repeated across `src/data/*.py`:
 
 ```python
-import json
-import os
-from datetime import datetime
+def _read_cache(key, max_age_hours=24):
+    if not os.path.exists(path):
+        return None
+    cached = json.load(open(path))
+    age_hours = (datetime.now() - datetime.fromisoformat(cached["timestamp"])).total_seconds() / 3600
+    return cached["data"] if age_hours < max_age_hours else None
 
-def get_with_cache(cache_key, fetch_function, cache_hours=6):
-    cache_file = f"cache/{cache_key}.json"
-    
-    # Check if cached version is still fresh
-    if os.path.exists(cache_file):
-        with open(cache_file) as f:
-            cached = json.load(f)
-        cached_time = datetime.fromisoformat(cached["timestamp"])
-        age_hours = (datetime.now() - cached_time).seconds / 3600
-        if age_hours < cache_hours:
-            return cached["data"]  # Return cached version
-    
-    # Otherwise fetch fresh
-    data = fetch_function()
-    os.makedirs("cache", exist_ok=True)
-    with open(cache_file, "w") as f:
-        json.dump({"timestamp": datetime.now().isoformat(), "data": data}, f)
-    
-    return data
+def _write_cache(key, data):
+    json.dump({"timestamp": datetime.now().isoformat(), "data": data}, open(path, "w"))
 ```
+
+Cache windows are tuned per source: commodity prices 24h (1h for a cached *failure*, so a rate-limited API doesn't get hammered every page load but also recovers quickly), World Bank 7 days (matches their annual update cadence), NewsAPI 24h per subject.
+
+**Note for Streamlit Cloud:** this cache lives on the app's local filesystem, which is only persistent for the container's lifetime — a redeploy or a free-tier sleep/wake cycle can reset it. That's fine for this use case (it just means a fresh fetch on the next page load), but it's worth knowing if you're wondering why "yesterday's" cached data isn't there after a redeploy.
 
 Next: [docs/03-RISK-SCORING.md](03-RISK-SCORING.md) — Exactly how each 0-100 score is calculated.

@@ -2,7 +2,7 @@
 
 Read this first. It explains what you're building, why each part exists, and how the pieces connect. No jargon.
 
-**This doc was rewritten to match the live app.** The original plan covered 5 industries and 4 risk categories. The app has since grown to **11 industries** and **5 risk categories** (Currency/FX and Climate/Disaster were tried, then removed after review — see [docs/03-RISK-SCORING.md](03-RISK-SCORING.md) for why), plus a company-specific AI layer that wasn't in the original plan at all.
+**This doc was rewritten to match the live app.** The original plan covered 5 industries and 4 risk categories. The app has since grown to **11 industries** and **5 risk categories** (Currency/FX and Climate/Disaster were tried, then removed after review — see [docs/03-RISK-SCORING.md](03-RISK-SCORING.md) for why), plus a company-specific AI layer, a PDF/Excel export, and three additional dashboard sections (Supplier Risk, Logistics Risk, Geographic & External Risk) that weren't in the original plan at all.
 
 ---
 
@@ -64,13 +64,13 @@ If Apple buys most of its semiconductors from TSMC in Taiwan, and something happ
 
 **What it means:** Are the raw materials this industry needs spiking in price or becoming volatile?
 
-**How you measure it:** Live commodity price data (FRED + Alpha Vantage) across 9 tracked commodities (Steel, Copper, Aluminum, Titanium, Oil, Natural Gas, Wheat, Corn, Cotton). Two signals combine: price trend (is it going up?) and price volatility (is it swinging unpredictably?).
+**How you measure it:** Live commodity price data (FRED + Alpha Vantage) across 9 tracked commodities (Steel, Copper, Aluminum, Titanium, Oil, Natural Gas, Wheat, Corn, Cotton). Three real signals combine as **Probability × Impact × Current State**: historical volatility (how likely is it to keep swinging), trend magnitude (how much has it already moved), and where today's price sits within its own recent range (a price that spiked and retreated reads differently than one still climbing). See [docs/03-RISK-SCORING.md](03-RISK-SCORING.md) for why this is combined as a geometric mean, not a raw product.
 
 ### 3. Logistics & Shipping Risk (20% of total score)
 
 **What it means:** Can goods actually move from where they're made to where they're needed?
 
-**How you measure it:** A hand-curated baseline status for 5 major routes (Red Sea/Suez, Panama Canal, US East/West Coast ports, Strait of Malacca), combined with a **live news-spike layer** that watches for breaking disruption headlines between manual updates.
+**How you measure it:** Same Probability × Impact × Current State approach as Commodity, built from the existing hand-curated route data: the status snapshot itself (NORMAL/ELEVATED/DISRUPTED/SEVERE) as Current State, typical delay days as Probability, and the cost premium as Impact — combined via geometric mean, then a **live news-spike layer** adds on top to catch breaking disruption headlines between manual route-status updates.
 
 ### 4. Geopolitical Risk (20% of total score)
 
@@ -89,7 +89,13 @@ If Apple buys most of its semiconductors from TSMC in Taiwan, and something happ
 ## How the Score Is Calculated
 
 ```
-Total Risk Score = (Supplier × 0.25) + (Commodity × 0.20) + (Logistics × 0.20) + (Geopolitical × 0.20) + (Regulatory × 0.15)
+Total Risk Score = (Supplier × weight) + (Commodity × weight) + (Logistics × weight) + (Geopolitical × weight) + (Regulatory × weight)
+```
+
+The weights themselves can now vary **per industry** (`WEIGHTS_BY_INDUSTRY` in `risk_engine.py`), since the same dimension doesn't matter equally everywhere — semiconductor-dependent Electronics has a custom breakdown (Supplier 30% / Geopolitical 25% / Commodity 20% / Logistics 15% / Regulatory 10%). The other 10 industries currently fall back to the original flat split below until they get their own researched breakdown:
+
+```
+Supplier 25% / Commodity 20% / Logistics 20% / Geopolitical 20% / Regulatory 15%
 ```
 
 **Why these specific numbers, not some other split?**
@@ -104,6 +110,22 @@ These weights are a documented judgment call, not a scientifically derived const
 
 ---
 
+## Beyond the 5 Scores: Three More Dashboard Sections
+
+The Summary & Recommendations tab doesn't stop at the 5 category scores. Three more sections present the same underlying data from a different angle, each clearly labeled when it's a derived estimate rather than a directly measured number:
+
+- **Supplier Risk** — the Supplier Concentration score restated, plus Single Source Dependency (how much of total sourcing comes from the single largest country) and Supplier Compliance Status, a real check of named suppliers (or the typed company name) against the US Treasury's Consolidated Screening List.
+- **Logistics Risk** — Shipment Delays and Port Congestion (both real numbers derived from the existing route data), the Transportation Risk Index (the Logistics & Shipping score under a different name), and an On-Time Delivery Rate explicitly marked as an *estimate* — no free API publishes real carrier on-time statistics.
+- **Geographic & External Risk** — three live NewsAPI keyword-spike checks (Natural Disaster Alerts, Weather Impact, Regional Conflict Alerts) against the top sourcing country, plus a Political/Regulatory Risks number that's just the Geopolitical and Regulatory scores averaged.
+
+A **Dashboard Visualization** area follows: a Risk Ranking chart comparing all 11 industries at once (sorted by total score, broken into each category's real contribution), and a Trend Analysis chart that snapshots the current industry's score once a day and plots it over time as real history accumulates.
+
+## Exporting the Report
+
+Two buttons on the Summary tab generate the full report — every score, the AI summary, recommendations, and all the detail tables and charts above — as a downloadable **PDF or Excel file**, built with `fpdf2` and `openpyxl` respectively (`src/export.py`).
+
+---
+
 ## What "Live Data" Actually Means
 
 "Live" means different things for different data types:
@@ -113,8 +135,10 @@ These weights are a documented judgment call, not a scientifically derived const
 | Commodity prices | Updated daily (cached 24h) | FRED API (Federal Reserve), Alpha Vantage |
 | Shipping & Regulatory baselines | Hand-curated, updated every 1-2 weeks | Manual research |
 | Shipping & Geopolitical & Regulatory "spike" layer | Refreshed daily | NewsAPI headline search |
+| Natural Disaster / Weather / Regional Conflict alerts | Refreshed daily | NewsAPI headline search, new keyword sets |
 | Geopolitical baseline | Updated annually (World Bank's own schedule) | World Bank governance indicators |
 | Supplier concentration | Updated quarterly | Hand-researched |
+| Supplier Compliance Status | Checked live, on demand | US Treasury Consolidated Screening List (via trade.gov) |
 
 The structural data (which countries make which goods) updates slowly on purpose — that's realistic, since supply chain structure doesn't change overnight. The fast-moving layers (commodity prices, news-driven spikes) update daily so the dashboard reflects what's actually happening right now.
 
@@ -129,10 +153,13 @@ After calculating all the numbers, the app passes them to an LLM (**Groq's hoste
 
 This is how AI is used in real enterprise software — not to make the decisions, but to translate already-computed data into language humans can act on.
 
-**If a company name is entered**, three more AI functions kick in:
+**If a company name is entered**, four more AI functions kick in:
 - It detects which of the 11 industries the company belongs to and auto-syncs the dropdown.
 - It estimates a small score adjustment per category based on real, named facts about that company (e.g. Apple's Foxconn relationship) — and explicitly does *nothing* if it isn't confident it recognizes the company, rather than inventing plausible-sounding details for a made-up name.
 - For recognized companies, it lists their actual known sourcing countries (often more than the generic industry's 4-5) on the Geopolitical Map tab.
+- It names real, specific suppliers (e.g. TSMC, Foxconn) when it has genuine knowledge of them, used for the High-Risk Suppliers and Supplier Compliance Status sections — falling back to the country-level sourcing breakdown when no specific suppliers are known.
+
+**One important fix:** these functions originally had no fixed temperature or random seed, so the same company could get a different score on a different device or after the cache expired — a real bug, not just AI being "creative." Every function that produces a number or classification now runs with `temperature=0` and a fixed `seed`, so the same input always produces the same output regardless of where or when it's called. Prose-only output (the risk brief, recommendation wording) keeps natural variation since exact phrasing doesn't need to be identical every time.
 
 ---
 
@@ -141,22 +168,23 @@ This is how AI is used in real enterprise software — not to make the decisions
 ```
 User picks an industry (or types a company name, which auto-detects its industry)
          ↓
-Data layer fetches live data from FRED, Alpha Vantage, World Bank, and NewsAPI
+Data layer fetches live data from FRED, Alpha Vantage, World Bank, NewsAPI, and trade.gov
          ↓
-Risk model calculates 5 sub-scores (Supplier, Commodity, Logistics, Geopolitical, Regulatory)
+Risk model calculates 5 sub-scores (Supplier, Commodity, Logistics, Geopolitical, Regulatory) -
+Commodity and Logistics as Probability x Impact x Current State, using per-industry weights
          ↓
 If a recognized company was entered, AI nudges each sub-score based on real facts
          ↓
 Streamlit builds the dashboard:
-   - Gauge chart (total score)
-   - 5 score cards, each labeled Low/Moderate/High/Critical Risk
-   - Commodity price charts
-   - Shipping disruption panel
-   - World map (industry-level or company-specific sourcing countries)
+   - Real-time Critical Risk Alert banner
+   - Gauge chart (total score) + 5 score cards + drill-down expander
+   - Commodity price charts, shipping disruption panel, world map with supplier markers
+   - Supplier Risk / Logistics Risk / Geographic & External Risk sections
+   - Dashboard Visualization: Risk Ranking (all 11 industries) + Trend Analysis
          ↓
 AI generates the Summary & Recommendations tab
          ↓
-User sees the full risk picture in 5-10 seconds
+User sees the full risk picture in 5-10 seconds, or exports it as a PDF/Excel report
 ```
 
 ---

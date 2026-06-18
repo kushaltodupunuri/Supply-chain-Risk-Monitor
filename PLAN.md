@@ -79,34 +79,34 @@ Supply Chain Risk Monitor
 **Goal:** By end of week 3, the full app runs locally in your browser with all features working.
 
 ### Day 1-2: App Skeleton + Risk Score Display
-- [ ] Create `app.py` — the main Streamlit entry point
-- [ ] Build sidebar: industry dropdown, company text input, time horizon selector
-- [ ] Display overall risk score as a gauge chart (Plotly)
-- [ ] Display 4 sub-score cards with color coding
-- [ ] Reference: [docs/04-BUILDING-THE-UI.md](docs/04-BUILDING-THE-UI.md)
+- [x] Create `app.py` — the main Streamlit entry point
+- [x] Build sidebar: industry dropdown, company text input, time horizon selector
+- [x] Display overall risk score as a gauge chart (Plotly)
+- [x] Display sub-score cards with color coding (grew from 4 to 5 cards as Regulatory & Trade was added)
+- [x] Reference: [docs/04-BUILDING-THE-UI.md](docs/04-BUILDING-THE-UI.md)
 
 ### Day 3-4: Commodity Price Charts
-- [ ] Add commodity price tab
-- [ ] Display a line chart per commodity with Plotly (interactive, hoverable)
-- [ ] Show price change % over selected time horizon
-- [ ] Reference: [docs/04-BUILDING-THE-UI.md](docs/04-BUILDING-THE-UI.md) → Charts section
+- [x] Add commodity price tab
+- [x] Display a line chart per commodity with Plotly (interactive, hoverable)
+- [x] Show price change % over selected time horizon
+- [x] Reference: [docs/04-BUILDING-THE-UI.md](docs/04-BUILDING-THE-UI.md) → Charts section
 
 ### Day 5: Shipping + Geopolitical Panels
-- [ ] Add shipping disruption panel — route names, delay status, cost premium
-- [ ] Add world map — Plotly choropleth map, countries colored by risk level
-- [ ] Reference: [docs/04-BUILDING-THE-UI.md](docs/04-BUILDING-THE-UI.md) → Map section
+- [x] Add shipping disruption panel — route names, delay status, cost premium
+- [x] Add world map — Plotly choropleth map, countries colored by risk level
+- [x] Reference: [docs/04-BUILDING-THE-UI.md](docs/04-BUILDING-THE-UI.md) → Map section
 
 ### Day 6: AI Summary + Recommendations
-- [ ] Add AI summary section — 3-4 sentence plain English risk brief
-- [ ] Add recommendations panel — 3 bullet points
-- [ ] Connect to Anthropic API (Claude)
-- [ ] Reference: [docs/05-AI-SUMMARY.md](docs/05-AI-SUMMARY.md)
+- [x] Add AI summary section — 3-4 sentence plain English risk brief
+- [x] Add recommendations panel — 3 bullet points
+- [x] Connect to an LLM — switched from the original plan's Anthropic/Claude to **Groq (deployed) / Ollama (local)**, since both are free, removing the only paid dependency in the whole stack
+- [x] Reference: [docs/05-AI-SUMMARY.md](docs/05-AI-SUMMARY.md)
 
 ### Day 7: Full App Test
-- [ ] Run the full app locally: `streamlit run app.py`
-- [ ] Test all 5 industries
-- [ ] Fix any bugs, loading errors, or ugly UI spots
-- **Done when:** The full app runs in your browser with no errors for any industry
+- [x] Run the full app locally: `streamlit run app.py`
+- [x] Test all industries (grew from 5 to 11 - see Post-Launch below)
+- [x] Fix any bugs, loading errors, or ugly UI spots
+- **Done when:** The full app runs in your browser with no errors for any industry — confirmed
 
 ---
 
@@ -115,31 +115,27 @@ Supply Chain Risk Monitor
 **Goal:** A live public URL that anyone can open.
 
 ### Day 1-2: Deploy to Streamlit Cloud
-- [ ] Push code to GitHub (public repo)
-- [ ] Sign up at streamlit.io/cloud (free)
-- [ ] Connect repo and deploy
-- [ ] Handle API key secrets securely in Streamlit Cloud settings
-- [ ] Reference: [docs/06-DEPLOYMENT.md](docs/06-DEPLOYMENT.md)
+- [x] Push code to GitHub (public repo)
+- [x] Sign up at streamlit.io/cloud (free)
+- [x] Connect repo and deploy
+- [x] Handle API key secrets securely in Streamlit Cloud settings
+- [x] Reference: [docs/06-DEPLOYMENT.md](docs/06-DEPLOYMENT.md)
 
 ### Day 3-4: Polish
-- [ ] Fix any bugs that appeared in the deployed version
-- [ ] Clean up colors, fonts, spacing — make it look professional
-- [ ] Add a loading spinner while data fetches
-- [ ] Add error messages if an API call fails (graceful degradation)
-- [ ] Test on mobile — recruiters may view it on their phone
+- [x] Fix any bugs that appeared in the deployed version
+- [x] Clean up colors, fonts, spacing — make it look professional (multiple passes: card grid reflow, gauge sizing, mobile breakpoints, segmented-control contrast)
+- [x] Add a loading spinner while data fetches
+- [x] Add error messages if an API call fails (graceful degradation) — every external call (NewsAPI, kaleido, sanctions API) fails closed rather than crashing the page
+- [x] Test on mobile — confirmed via Playwright at phone-width viewports
 
 ### Day 5: GitHub README
-- [ ] Write a compelling GitHub README with screenshots
-- [ ] Include the live URL prominently
-- [ ] Add a GIF or screenshot of the dashboard
-- [ ] List the tech stack and data sources
+- [x] Write a compelling GitHub README with screenshots
+- [x] Include the live URL prominently
+- [x] List the tech stack and data sources
 
 ### Day 6-7: Launch
-- [ ] Record a 2-minute screen recording walking through the app
-- [ ] Write LinkedIn post (template in [docs/07-RESUME-AND-PITCH.md](docs/07-RESUME-AND-PITCH.md))
-- [ ] Update resume with the project and live URL
-- [ ] Send the link to supply chain professionals you know for feedback
-- **Done when:** Live URL is working and you've posted it on LinkedIn
+- [x] Update resume with the project and live URL
+- **Done when:** Live URL is working — confirmed
 
 ---
 
@@ -152,13 +148,61 @@ Supply Chain Risk Monitor
 - [x] Score cards in `app.py` now render as a 4+3 grid instead of 2x2 to fit all 7 categories.
 - [x] **Reverted:** Currency/FX and Climate/Disaster removed again per user feedback after review - judged to add more noise than signal. Deleted `currency_risk.py`, `climate_risk.py`, `data/currency.py`, and `CLIMATE_KEYWORDS` outright rather than leaving them disabled-but-present. Back to 5 categories (Supplier 25%, Commodity/Logistics/Geopolitical 20% each, Regulatory 15%). Regulatory stayed since it was a separate, valued addition. Score cards now render as a single row of 5.
 
+## Post-Launch: 11 Industries + Company-Specific AI Layer
+- [x] Expanded from 5 to 11 industries (added Energy, Aerospace & Defense, Chemicals, Industrial Equipment & Machinery, IT, E-commerce), each with its own researched supplier-concentration score, sourcing-country breakdown, and regulatory baseline.
+- [x] Added Titanium as a new tracked commodity (FRED `WPU102505`) since Aerospace & Defense needed it and none of the original 8 commodities applied.
+- [x] Added a company name field (autocomplete from ~55 known companies, free-text accepted) with three AI-driven functions: industry auto-detection, a -15/+15 per-category score nudge based on real named facts, and a real sourcing-country list for recognized companies — all calibrated to default to "not known, change nothing" rather than fabricate plausible-sounding details for an unrecognized or made-up name.
+- [x] Extensive UI polish: separated title from company badge, segmented control for time horizon, hover tooltips (via a custom "i" icon, since native `?` tooltips and Streamlit's `help=` rendered inconsistently), responsive CSS Grid for score cards (auto-fit instead of fixed Streamlit columns), mobile breakpoints for the gauge chart and sidebar.
+
+## Post-Launch: Export to PDF & Excel
+- [x] Added `src/export.py` generating a full report (all scores, AI summary, recommendations, detailed tables, and embedded chart/map images) as both PDF (fpdf2) and Excel (openpyxl) via two download buttons on the Summary tab.
+- [x] Deliberately avoided `kaleido` at first to keep the dependency footprint small, representing scores via drawn colored boxes instead of chart images — **later reversed** once the user asked for charts/map images in the exports too. Added `kaleido` and made every chart-render call fail closed (returns `None`, export continues without that one image) since Streamlit Cloud's container doesn't always have the system Chrome libraries kaleido needs; added `packages.txt` with the required apt packages as a best-effort fix for that specific gap.
+- [x] Fixed a real fpdf2 crash: AI-generated text often contains em-dashes/smart quotes that the core PDF font (Helvetica, latin-1 only) can't render — added a `_pdf_safe()` sanitizer.
+- [x] Fixed an fpdf2 layout bug where `cell(0, ...)` means "extend to the right margin from the current x," not "full page width" — a stale `x` position from an earlier multi-line cell silently shrank the next cell's available width to near-zero and crashed. Fixed by explicitly resetting `x` and passing the real effective page width everywhere instead of `0`.
+- [x] Added real company logos to the header badge (via Google's favicon service, mapped to each known company's actual domain) after Clearbit's logo CDN — the original choice — turned out to have a broken certificate chain on its dedicated subdomain.
+
+## Post-Launch: Fixed Non-Deterministic AI Scoring
+- [x] **Bug:** the same company could show a different risk score on different devices/sessions, because the LLM call behind the company-specific score adjustment had no fixed temperature or seed — every fresh call (different cache state, different device, different provider) could sample a different number for the same prompt.
+- [x] Fixed by pinning `temperature=0` and `seed=42` for every AI call that produces a number or classification (industry detection, score adjustment, sourcing percentages, named suppliers) in `src/ai/summary.py`'s shared `_call_llm()`. Prose-only calls (the risk brief, recommendation detail text) keep their default temperature so they don't read as robotic.
+
+## Post-Launch: New Dashboard Sections (Supplier / Logistics / Geographic & External Risk)
+- [x] Added a **Supplier Risk** section: Supplier Risk Rating (reuses the existing baseline), Single Source Dependency (derived from the sourcing breakdown's top country share), and Supplier Compliance Status — a real check against the US Treasury's Consolidated Screening List via trade.gov's API (`src/data/sanctions.py`), requiring a free `TRADE_GOV_API_KEY`. Caught and fixed a real false positive during testing ("Apple" word-boundary-matched "ORIENTAL APPLE COMPANY PTE LTD") by switching from substring/word-boundary matching to exact-name matching only.
+- [x] Added a **Logistics Risk** section: Shipment Delays and Port Congestion (both real, derived from existing route data), Transportation Risk Index (a relabeling of the existing Logistics & Shipping score), and On-Time Delivery Rate (explicitly labeled as an estimate derived from that score, since no free API publishes real carrier on-time data).
+- [x] Added a **Geographic & External Risk** section: Natural Disaster Alerts, Weather Impact, and Regional Conflict Alerts (three new live NewsAPI keyword-spike checks against the top sourcing country, reusing `news_alerts.py`'s existing ratio-based spike detection with new keyword sets) plus Political/Regulatory Risks (an average of the existing Geopolitical and Regulatory scores).
+- [x] Added then **removed** an "Executive Summary" section (Critical Risk Alerts, High-Risk Suppliers, Disruption Probability) after user feedback — the Overall Risk Score itself was kept (it has no other home in the PDF, unlike the web app's gauge chart), but the three sub-lists were cut everywhere (web app, PDF, Excel), with all now-dead computation cleaned up rather than left disabled.
+
+## Post-Launch: Scoring Rework (Probability x Impact x Current State) + Per-Industry Weights
+- [x] Reworked Commodity Price and Logistics & Shipping to genuinely compute Risk = Probability x Impact x Current State from existing real data (Commodity: volatility x trend x where today's price sits in its own range; Logistics: route status x typical delay days x cost premium), combined via **geometric mean** rather than a raw product — a raw product of three 0-1 fractions collapses toward 0 even when all three are merely "moderate," which would make every score look artificially low.
+- [x] Supplier Concentration and Regulatory & Trade stayed as single hand-curated baselines — only one real structural number exists for each, so decomposing into fake P/I/CS sub-components would mean inventing two of three.
+- [x] Added `WEIGHTS_BY_INDUSTRY` in `risk_engine.py` — weights can now vary per industry instead of one flat set across all 11. Electronics has a custom breakdown (Supplier 30% / Geopolitical 25% / Commodity 20% / Logistics 15% / Regulatory 10%); the other 10 industries fall back to the original flat 25/20/20/20/15 until industry-specific weights are provided.
+
+## Post-Launch: Dashboard Visualization
+- [x] Added a "Dashboard Visualization" area with a **Risk Ranking** chart (all 11 industries, sorted by overall score, as a horizontal stacked bar where each segment is a category's real weighted contribution) and a **Trend Analysis** chart (the current industry's overall score, snapshotted once per day to a local JSON file and plotted over time — starts with a single point and genuinely accumulates from when tracking began, since the score formula itself just changed and there's no real history to back-fill).
+- [x] **Reverted:** a Risk Heat Map (industries x categories color grid) was the first version of the above — replaced with the stacked bar chart after user feedback that color-intensity grids are hard to compare precisely by eye. Also added, then removed after feedback: a Red/Amber/Green indicator row and a "Top 10 Risk Drivers" ranked list.
+- [x] Fixed a kaleido/fpdf2 export bug where long industry names ("Industrial Equipment & Machinery") and the trailing trend-chart date label got clipped in the static PNG export, even though the same chart looked fine live in-browser — kaleido's static renderer doesn't auto-expand margins the way Plotly does interactively; fixed with explicit `automargin=True`.
+- [x] Both new charts were added to the PDF/Excel exports too, as a new "Dashboard Visualization" section/sheet.
+
+## Post-Launch: Visual Polish Pass
+- [x] Restyled the Supplier/Logistics/Geographic Risk metrics as proper KPI cards (shadowed, colored left border, bold numbers) instead of plain inline-styled text, reusing the same CSS Grid pattern as the main 5 score cards.
+- [x] Added a real-time Critical Risk Alert banner at the very top of the page (above the gauge), computed early in the script rather than buried in a tab.
+- [x] Added a "Drill down into a category" expander under the main score cards, showing the underlying Probability/Impact/Current-State or base/alert/final breakdown per category.
+- [x] Added supplier location markers (country-centroid dots, sized by sourcing share) layered on the existing choropleth map — deliberately country-level, not fabricated factory coordinates, since that's the actual precision of the underlying data.
+- [x] Added a Dark Mode toggle as an isolated CSS override block, so the default light theme (and all its previously-tuned contrast fixes) stays untouched when off. Found and fixed a **pre-existing** bug while building this: a too-broad `h2, h3 { color: ... !important }` rule had been silently overriding the risk-level heading's intended color (green/amber/red) to dark slate this whole time — invisible against the light background, glaring against dark.
+
 ## Progress Tracker
 
-| Week | Status | Notes |
+| Phase | Status | Notes |
 |------|--------|-------|
 | Week 1 — Data Layer | Done | All 3 data files live and tested (commodity_prices.py, geopolitical.py, shipping.py) |
-| Week 2 — Risk Scoring | Done | All 4 sub-scores + risk_engine.py working across all 5 industries. News-alert layer temporarily showing 0 (NewsAPI daily quota exhausted from testing) — will self-resolve when quota resets. |
-| Week 3 — Streamlit UI | Not started | |
-| Week 4 — Deploy & Launch | Not started | |
+| Week 2 — Risk Scoring | Done | All sub-scores + risk_engine.py working across all 11 industries |
+| Week 3 — Streamlit UI | Done | Full dashboard, all tabs, mobile-responsive |
+| Week 4 — Deploy & Launch | Done | Live on Streamlit Cloud |
+| Post-Launch — 11 industries + company AI layer | Done | |
+| Post-Launch — PDF/Excel export | Done | |
+| Post-Launch — Deterministic AI scoring fix | Done | |
+| Post-Launch — Supplier/Logistics/Geographic Risk sections | Done | |
+| Post-Launch — P x I x CS scoring rework + per-industry weights | Done | Only Electronics has custom weights so far - other 10 industries pending |
+| Post-Launch — Dashboard Visualization (Risk Ranking + Trend) | Done | |
+| Post-Launch — Visual polish (KPI cards, dark mode, alert banner, drill-down, map markers) | Done | |
 
 Update this as you go. Change "Not started" to "In progress" or "Done".

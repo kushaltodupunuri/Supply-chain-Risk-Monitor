@@ -40,25 +40,47 @@ Before you can deploy, you need:
 
 ## Step 1: Prepare Your Repository
 
-### Create requirements.txt
-
-This tells Streamlit Cloud what Python packages to install:
-
-```bash
-# Run this in your project folder
-pip freeze > requirements.txt
-```
-
-Or write it manually (cleaner):
+### requirements.txt (already in the repo, shown here for reference)
 
 ```
-streamlit>=1.28.0
+streamlit>=1.50.0
 plotly>=5.17.0
 pandas>=2.0.0
 requests>=2.31.0
-anthropic>=0.20.0
 python-dotenv>=1.0.0
+ollama>=0.6.0
+groq>=1.4.0
+openpyxl>=3.1.0
+fpdf2>=2.8.0
+kaleido>=1.0.0
+pillow>=10.0.0
 ```
+
+`anthropic` was in the original plan but is never imported — the AI layer runs on Groq/Ollama instead (see [docs/05-AI-SUMMARY.md](05-AI-SUMMARY.md)). `openpyxl`/`fpdf2` build the Excel/PDF export, `kaleido` renders the Plotly charts/map as static images for those exports, and `pillow` is kaleido's transitive image-handling dependency.
+
+### Create packages.txt (already in the repo)
+
+Streamlit Cloud's base container doesn't have the system libraries `kaleido` needs to launch a headless Chrome for chart rendering. `packages.txt` at the repo root tells Streamlit Cloud's apt layer what to install alongside the Python packages:
+
+```
+libnss3
+libatk1.0-0
+libatk-bridge2.0-0
+libcups2
+libdbus-1-3
+libdrm2
+libxkbcommon0
+libxcomposite1
+libxdamage1
+libxfixes3
+libxrandr2
+libgbm1
+libasound2
+libpango-1.0-0
+libcairo2
+```
+
+If a chart still fails to render after this, it's not catastrophic — `src/export.py` wraps every chart-render call so it returns `None` and the export continues without that one image, rather than crashing the whole report.
 
 ### Create .gitignore
 
@@ -80,6 +102,7 @@ __pycache__/
 Supply-Chain-Risk-Monitor/
 ├── app.py              ← MUST be here, this is what Streamlit runs
 ├── requirements.txt    ← MUST be here
+├── packages.txt        ← MUST be here (apt deps kaleido needs for chart export)
 ├── .gitignore          ← MUST be here (protects your .env)
 ├── .env                ← NOT committed to GitHub (in .gitignore)
 ├── docs/
@@ -148,34 +171,41 @@ Click **"Secrets"** and paste this:
 ```toml
 # Streamlit Secrets format (TOML, not .env format)
 FRED_API_KEY = "your_actual_fred_key_here"
-ALPHA_VANTAGE_KEY = "your_actual_alpha_key_here"
-BLS_API_KEY = "your_actual_bls_key_here"
-ANTHROPIC_API_KEY = "your_actual_anthropic_key_here"
+ALPHA_VANTAGE_KEY = "your_actual_alpha_vantage_key_here"
+NEWS_API_KEY = "your_actual_newsapi_key_here"
+GROQ_API_KEY = "your_actual_groq_key_here"
+TRADE_GOV_API_KEY = "your_actual_trade_gov_key_here"
 ```
+
+`GROQ_API_KEY` and `TRADE_GOV_API_KEY` are optional — without `GROQ_API_KEY` the app would try to call Ollama, which doesn't exist on Streamlit Cloud, so set it for the deployed app even though it's optional locally. Without `TRADE_GOV_API_KEY`, Supplier Compliance Status just shows "Not checked" rather than failing.
 
 ### Update your Python code to read Streamlit secrets:
 
-Streamlit Cloud stores secrets in `st.secrets`, not environment variables. You need to handle both cases:
+Streamlit Cloud stores secrets in `st.secrets`, not environment variables. The actual implementation, `src/config.py`:
 
 ```python
 import os
-import streamlit as st
 from dotenv import load_dotenv
 
-# Load from .env when running locally
-load_dotenv()
+load_dotenv()  # reads .env when running locally; harmless no-op on Streamlit Cloud
 
 def get_secret(key):
-    # Try Streamlit secrets first (production), fall back to env vars (local)
+    # Try Streamlit secrets first (production), fall back to env vars (local).
+    # st.secrets isn't available (or raises) outside a Streamlit run context,
+    # hence importing it inside the try and catching broadly.
     try:
-        return st.secrets[key]
-    except (KeyError, FileNotFoundError):
-        return os.getenv(key)
+        import streamlit as st
+        if key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+    return os.getenv(key)
 
 FRED_API_KEY = get_secret("FRED_API_KEY")
-ALPHA_KEY = get_secret("ALPHA_VANTAGE_KEY")
-BLS_KEY = get_secret("BLS_API_KEY")
-ANTHROPIC_KEY = get_secret("ANTHROPIC_API_KEY")
+ALPHA_VANTAGE_KEY = get_secret("ALPHA_VANTAGE_KEY")
+NEWS_API_KEY = get_secret("NEWS_API_KEY")
+GROQ_API_KEY = get_secret("GROQ_API_KEY")
+TRADE_GOV_API_KEY = get_secret("TRADE_GOV_API_KEY")
 ```
 
 This means the same code works both locally (reads from `.env`) and on Streamlit Cloud (reads from secrets).
@@ -269,11 +299,12 @@ def get_commodity_prices_cached(industry):
 ## After Deployment: Test Everything
 
 1. Open the live URL on a fresh browser (incognito) where you're not logged in
-2. Test all 5 industries
+2. Test a few of the 11 industries
 3. Test on your phone — recruiters may view on mobile
-4. Check that all charts render
-5. Check that the AI summary generates
-6. Check what happens when you type a company name
+4. Check that all charts render, including the Geopolitical Map and the Dashboard Visualization charts
+5. Check that the AI summary generates (confirms `GROQ_API_KEY` is set correctly)
+6. Check what happens when you type a company name (both a real one and a made-up one — it should say "not known" for the fake one, not invent details)
+7. Download both the PDF and Excel exports and confirm the charts/map embedded inside them actually rendered (this is the one thing most likely to silently fail if `packages.txt` didn't take effect — see "Common Deployment Issues" if a chart is missing)
 
 ---
 
