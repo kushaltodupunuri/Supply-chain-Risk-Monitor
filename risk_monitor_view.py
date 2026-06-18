@@ -500,10 +500,6 @@ if company_name:
         'align-items:center; gap:7px;">'
         f"{company_icon} {company_name}</span>"
     )
-badges += f"""
-    <span style="background:#EEF2FF; color:#4F46E5; padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700;">{industry}</span>
-    <span style="background:#F1F5F9; color:#475569; padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700;">{time_horizon} horizon</span>
-"""
 if company_name and not detected_industry:
     badges += (
         '<span style="background:#FEF3C7; color:#92400E; padding:5px 14px; '
@@ -511,10 +507,11 @@ if company_name and not detected_industry:
         f"Industry not recognized for '{company_name}' - showing dropdown selection</span>"
     )
 
-st.markdown(
-    f"""<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:-10px; margin-bottom:20px;">{badges}</div>""",
-    unsafe_allow_html=True,
-)
+if badges:
+    st.markdown(
+        f"""<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:-10px; margin-bottom:20px;">{badges}</div>""",
+        unsafe_allow_html=True,
+    )
 
 # ---- RISK SCORE SECTION ----
 with st.spinner("Fetching live data and calculating risk scores..."):
