@@ -352,18 +352,18 @@ When a company name is entered, four AI-driven (Groq/Ollama) functions can adjus
 
 Three sections present the same underlying real data from a different angle, rather than computing anything new from scratch:
 
-**Supplier Risk** (`Risk_Monitor.py`, reuses `supplier_risk.py` + `sanctions.py`):
+**Supplier Risk** (`app.py`, reuses `supplier_risk.py` + `sanctions.py`):
 - *Supplier Risk Rating* — the Supplier Concentration score, restated.
 - *Single Source Dependency* — High/Moderate/Low based on the top sourcing country's share of total sourcing (≥50% / ≥30% / below).
 - *Supplier Compliance Status* — a real check of named suppliers (or the typed company name, if no suppliers are known) against the US Treasury's Consolidated Screening List via trade.gov's API. Shows "Not checked" honestly if no API key is configured, rather than a false "Clear."
 
-**Logistics Risk** (`Risk_Monitor.py`, reuses `logistics_risk.py` + `shipping.py`):
+**Logistics Risk** (`app.py`, reuses `logistics_risk.py` + `shipping.py`):
 - *Shipment Delays* — the weighted average `delay_days` across tracked routes.
 - *Port Congestion* — the average risk score across routes whose name contains "Port".
 - *Transportation Risk Index* — the Logistics & Shipping score, restated.
 - *On-Time Delivery Rate* — `100 - logistics_score * 0.4`, floored at 60%, explicitly labeled as an **estimate derived from** the Transportation Risk Index, since no free API publishes real carrier on-time performance data.
 
-**Geographic & External Risk** (`Risk_Monitor.py`, reuses `news_alerts.py` + the 5 core scores):
+**Geographic & External Risk** (`app.py`, reuses `news_alerts.py` + the 5 core scores):
 - *Natural Disaster Alerts*, *Weather Impact*, *Regional Conflict Alerts* — three new live NewsAPI keyword-spike checks (see "API #4: NewsAPI" in [docs/02-DATA-SOURCES.md](02-DATA-SOURCES.md) for the keyword sets) against the top sourcing country, banded Normal/Watch/Elevated/High by the same `ratio_to_adjustment()` thresholds used everywhere else.
 - *Political/Regulatory Risks* — the average of the Geopolitical and Regulatory & Trade scores.
 

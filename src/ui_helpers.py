@@ -1,9 +1,9 @@
 import streamlit as st
 
 # Shared styling for the SupplyIQ modules (pages/*.py) - each Streamlit page runs as
-# its own script, so CSS injected in Risk_Monitor.py doesn't carry over; this gets
-# imported and called once at the top of every page instead of repeating the same
-# <style> block six times.
+# its own script, so CSS injected in app.py doesn't carry over; this gets imported
+# and called once at the top of every page instead of repeating the same <style>
+# block six times.
 
 
 def inject_shared_css():

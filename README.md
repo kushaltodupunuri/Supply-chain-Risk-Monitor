@@ -29,7 +29,7 @@ A live, interactive web application with two parts under one sidebar: **Risk Mon
 ```
 Supply-Chain-Risk-Monitor/
 ├── README.md                    ← You are here. The big picture.
-├── Risk_Monitor.py              ← The Risk Monitor entry point (main Streamlit script)
+├── app.py                       ← The Risk Monitor entry point (main Streamlit script)
 ├── requirements.txt             ← Python dependencies
 ├── packages.txt                 ← System (apt) packages Streamlit Cloud needs for kaleido/Chrome
 │
@@ -91,7 +91,7 @@ pip install -r requirements.txt
 #              TRADE_GOV_API_KEY (Supplier Compliance Status shows "not checked" without it)
 
 # 3. Run locally
-streamlit run Risk_Monitor.py
+streamlit run app.py
 #    (the 6 SupplyIQ modules in pages/ need no API keys - they work from data you
 #    enter or upload, and appear automatically in the sidebar)
 
