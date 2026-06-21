@@ -17,20 +17,44 @@ def inject_shared_css():
         h1, h2, h3 { font-weight: 800 !important; letter-spacing: -0.01em !important; }
 
         .metric-card {
-            background: #FFFFFF;
-            border-radius: 14px;
-            padding: 18px 20px;
+            background: linear-gradient(150deg, #FFFFFF 0%, #FAFBFF 100%);
+            border-radius: 16px;
+            padding: 18px 20px 16px;
             margin: 6px 0;
-            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
-            border-left: 5px solid var(--card-color, #94A3B8);
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+            border: 1px solid #F1F5F9;
+            border-top: 4px solid var(--card-color, #94A3B8);
             height: 100%;
+            position: relative;
+            overflow: hidden;
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+        .metric-card:hover {
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+            transform: translateY(-3px);
+        }
+        .metric-card::before {
+            content: "";
+            position: absolute;
+            top: -30px; right: -30px;
+            width: 90px; height: 90px;
+            border-radius: 50%;
+            background: var(--card-color, #94A3B8);
+            opacity: 0.07;
         }
         .metric-card .metric-label {
-            font-weight: 600; font-size: 12.5px; color: #64748B;
-            text-transform: uppercase; letter-spacing: 0.02em;
+            font-weight: 700; font-size: 11.5px; color: #64748B;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            position: relative; z-index: 1;
         }
-        .metric-card .metric-value { font-size: 30px; font-weight: 800; margin-top: 6px; line-height: 1.15; }
-        .metric-card .metric-caption { font-size: 12.5px; color: #94A3B8; margin-top: 6px; line-height: 1.4; }
+        .metric-card .metric-value {
+            font-size: 30px; font-weight: 800; margin-top: 8px; line-height: 1.1;
+            position: relative; z-index: 1;
+        }
+        .metric-card .metric-caption {
+            font-size: 12.5px; color: #94A3B8; margin-top: 8px; line-height: 1.45;
+            position: relative; z-index: 1;
+        }
 
         .note-card {
             border-radius: 14px;
