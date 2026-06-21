@@ -113,13 +113,13 @@ st.markdown(
         border-radius: 14px;
         padding: 20px 22px;
         margin: 6px 0;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16), 0 3px 8px rgba(15, 23, 42, 0.10);
         border-left: 5px solid var(--card-color, #94A3B8);
         transition: box-shadow 0.2s ease, transform 0.2s ease;
     }
     .risk-card:hover {
-        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.10);
-        transform: translateY(-2px);
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22), 0 6px 12px rgba(15, 23, 42, 0.12);
+        transform: translateY(-4px);
     }
     .risk-card .risk-icon { font-size: 26px; margin-bottom: 8px; }
     .risk-card .risk-label {
@@ -138,7 +138,7 @@ st.markdown(
         border-radius: 16px;
         padding: 18px 20px 16px;
         margin: 6px 0;
-        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.15), 0 3px 8px rgba(15, 23, 42, 0.10);
         border: 1px solid #F1F5F9;
         border-top: 4px solid var(--card-color, #94A3B8);
         height: 100%;
@@ -147,8 +147,8 @@ st.markdown(
         transition: box-shadow 0.2s ease, transform 0.2s ease;
     }
     .kpi-card:hover {
-        box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
-        transform: translateY(-3px);
+        box-shadow: 0 18px 38px rgba(15, 23, 42, 0.22), 0 6px 12px rgba(15, 23, 42, 0.12);
+        transform: translateY(-4px);
     }
     .kpi-card::before {
         content: "";
@@ -177,7 +177,7 @@ st.markdown(
     .note-card {
         border-radius: 14px;
         padding: 22px 24px;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.12), 0 3px 8px rgba(15, 23, 42, 0.08);
         line-height: 1.7;
         font-size: 15.5px;
     }
@@ -188,8 +188,13 @@ st.markdown(
         border-radius: 12px;
         padding: 18px 20px;
         margin: 10px 0;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.10), 0 2px 6px rgba(15, 23, 42, 0.06);
         border: 1px solid #EEF2F7;
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+    .rec-card:hover {
+        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.16), 0 4px 10px rgba(15, 23, 42, 0.10);
+        transform: translateY(-3px);
     }
 
     /* Tighter, more deliberate vertical rhythm between sections */
